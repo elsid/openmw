@@ -2,6 +2,10 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <unordered_set>
+#include <fstream>
+
+#include <boost/optional.hpp>
 
 #include <osg/Group>
 
@@ -16,6 +20,12 @@
 #include <BulletCollision/BroadphaseCollision/btDbvtBroadphase.h>
 
 #include <LinearMath/btQuickprof.h>
+
+#include <DetourCommon.h>
+#include <DetourNavMesh.h>
+#include <DetourNavMeshBuilder.h>
+#include <DetourNavMeshQuery.h>
+#include <Recast.h>
 
 #include <components/nifbullet/bulletnifloader.hpp>
 #include <components/resource/resourcesystem.hpp>
@@ -538,6 +548,10 @@ namespace MWPhysics
         {
             return mCollisionObject;
         }
+        const btHeightfieldTerrainShape* getShape() const
+        {
+            return mShape;
+        }
 
     private:
         btHeightfieldTerrainShape* mShape;
@@ -674,6 +688,876 @@ namespace MWPhysics
 
     // ---------------------------------------------------------------
 
+    // Scale all coordinates to change order of values to make rcCreateHeightfield work
+    static constexpr float invertedRecastScaleFactor = 64.0f;
+    static constexpr float recastScaleFactor = 1.0f / invertedRecastScaleFactor;
+
+    class RecastMesh
+    {
+    public:
+        RecastMesh(std::vector<int> indices, std::vector<float> vertices, std::size_t trianglesCount)
+            : mIndices(std::move(indices))
+            , mVertices(std::move(vertices))
+            , mTrianglesCount(trianglesCount)
+        {}
+
+        const std::vector<int>& getIndices() const
+        {
+            return mIndices;
+        }
+
+        const std::vector<float>& getVertices() const
+        {
+            return mVertices;
+        }
+
+        std::size_t getVerticesCount() const
+        {
+            return std::size_t(mVertices.size() / 3);
+        }
+
+        std::size_t getTrianglesCount() const
+        {
+            return mTrianglesCount;
+        }
+
+    private:
+        std::vector<int> mIndices;
+        std::vector<float> mVertices;
+        std::size_t mTrianglesCount;
+    };
+
+    template <class Impl>
+    class ProcessTriangleCallback : public btTriangleCallback
+    {
+    public:
+        ProcessTriangleCallback(Impl impl)
+            : mImpl(std::move(impl))
+        {}
+
+        void processTriangle(btVector3* triangle, int partId, int triangleIndex) override final
+        {
+            return mImpl(triangle, partId, triangleIndex);
+        }
+
+    private:
+        Impl mImpl;
+    };
+
+    template <class Impl>
+    ProcessTriangleCallback<typename std::decay<Impl>::type> makeProcessTriangleCallback(Impl&& impl)
+    {
+        return ProcessTriangleCallback<typename std::decay<Impl>::type>(std::forward<Impl>(impl));
+    }
+
+    class RecastMeshBuilder
+    {
+    public:
+        RecastMeshBuilder& addShape(const btConcaveShape& shape, const btTransform& transform)
+        {
+            auto callback = makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
+            {
+                for (std::size_t i = 3; i > 0; --i)
+                    addVertex(transform(triangle[i - 1]) * recastScaleFactor);
+                ++mTrianglesCount;
+            });
+            return addShape(shape, callback);
+        }
+
+        RecastMeshBuilder& addShape(const btHeightfieldTerrainShape& shape, const btTransform& transform)
+        {
+            auto callback = makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
+            {
+                for (std::size_t i = 0; i < 3; ++i)
+                    addVertex(transform(triangle[i]) * recastScaleFactor);
+                ++mTrianglesCount;
+            });
+            return addShape(shape, callback);
+        }
+
+        RecastMesh create()
+        {
+            return RecastMesh(mIndices, mVertices, mTrianglesCount);
+        }
+
+    private:
+        std::vector<int> mIndices;
+        std::vector<float> mVertices;
+        std::size_t mTrianglesCount = 0;
+        int mIndex = 0;
+
+        RecastMeshBuilder& addShape(const btConcaveShape& shape, btTriangleCallback& callback)
+        {
+            btVector3 aabbMin;
+            btVector3 aabbMax;
+            shape.getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
+            shape.processAllTriangles(&callback, aabbMin, aabbMax);
+            return *this;
+        }
+
+        void addVertex(const btVector3& worldPosition)
+        {
+            mIndices.push_back(mIndex++);
+            mVertices.push_back(worldPosition.x());
+            mVertices.push_back(worldPosition.z());
+            mVertices.push_back(worldPosition.y());
+        }
+    };
+
+    class RecastMeshManager
+    {
+    public:
+        bool addObject(HeightField* object)
+        {
+            if (!mHeightFields.insert(object).second)
+                return false;
+            mMeshBuilder.addShape(*object->getShape(), object->getCollisionObject()->getWorldTransform());
+            return true;
+        }
+
+        bool removeObject(HeightField* object)
+        {
+            if (!mHeightFields.erase(object))
+                return false;
+            rebuild();
+            return true;
+        }
+
+        bool addObject(Object* object)
+        {
+            if (const auto concaveShape = dynamic_cast<btConcaveShape*>(object->getShapeInstance()->mCollisionShape))
+            {
+                if (!mObjects.insert(object).second)
+                    return false;
+                mMeshBuilder.addShape(*concaveShape, object->getCollisionObject()->getWorldTransform());
+                return true;
+            }
+            return false;
+        }
+
+        bool removeObject(Object* object)
+        {
+            if (const auto concaveShape = dynamic_cast<btConcaveShape*>(object->getShapeInstance()->mCollisionShape))
+            {
+                if (!mObjects.erase(object))
+                    return false;
+                rebuild();
+                return true;
+            }
+            return false;
+        }
+
+        RecastMesh getMesh()
+        {
+            return mMeshBuilder.create();
+        }
+
+    private:
+        RecastMeshBuilder mMeshBuilder;
+        std::unordered_set<HeightField*> mHeightFields;
+        std::unordered_set<Object*> mObjects;
+
+        void rebuild()
+        {
+            mMeshBuilder = RecastMeshBuilder();
+            for (auto v : mHeightFields)
+                mMeshBuilder.addShape(*v->getShape(), v->getCollisionObject()->getWorldTransform());
+            for (auto v : mObjects)
+                if (const auto concaveShape = dynamic_cast<btConcaveShape*>(v->getShapeInstance()->mCollisionShape))
+                    mMeshBuilder.addShape(*concaveShape, v->getCollisionObject()->getWorldTransform());
+        }
+    };
+
+// Use to dump scene to load from recastnavigation demo tool
+#ifdef OPENMW_WRITE_OBJ
+    void writeObj(const std::vector<float>& vertices, const std::vector<int>& indices)
+    {
+        const auto path = std::string("scene.") + std::to_string(std::time(nullptr)) + ".obj";
+        std::ofstream file(path);
+        if (!file.is_open())
+            throw NavigatorException("Open file failed: " + path);
+        file.exceptions(std::ios::failbit | std::ios::badbit);
+        file.precision(std::numeric_limits<float>::max_digits10);
+        std::size_t count = 0;
+        for (auto v : vertices)
+        {
+            if (count % 3 == 0)
+            {
+                if (count != 0)
+                    file << '\n';
+                file << 'v';
+            }
+            file << ' ' << v;
+            ++count;
+        }
+        file << '\n';
+        count = 0;
+        for (auto v : indices)
+        {
+            if (count % 3 == 0)
+            {
+                if (count != 0)
+                    file << '\n';
+                file << 'f';
+            }
+            file << ' ' << (v + 1);
+            ++count;
+        }
+        file << '\n';
+    }
+#endif
+
+    class RecastMeshManagerCache
+    {
+    public:
+        template <class T>
+        bool addObject(T* object)
+        {
+            if (!mImpl.addObject(object))
+                return false;
+            mCached.reset();
+            return true;
+        }
+
+        template <class T>
+        bool removeObject(T* object)
+        {
+            if (!mImpl.removeObject(object))
+                return false;
+            mCached.reset();
+            return true;
+        }
+
+        const RecastMesh& getMesh()
+        {
+            if (!mCached.is_initialized())
+                mCached = mImpl.getMesh();
+#ifdef OPENMW_WRITE_OBJ
+            writeObj(mCached->getVertices(), mCached->getIndices());
+#endif
+            return *mCached;
+        }
+
+    private:
+        RecastMeshManager mImpl;
+        boost::optional<RecastMesh> mCached;
+    };
+
+    struct AgentParams
+    {
+        float mHeight;
+        float mMaxClimb;
+        float mRadius;
+    };
+
+    std::tuple<float, float, float> makeTuple(const AgentParams& value)
+    {
+        return std::make_tuple(value.mHeight, value.mMaxClimb, value.mRadius);
+    }
+
+    struct LessAgentParams
+    {
+        bool operator ()(const AgentParams& lhs, const AgentParams& rhs) const
+        {
+            return makeTuple(lhs) < makeTuple(rhs);
+        }
+    };
+
+    using NavMeshPtr = std::unique_ptr<dtNavMesh, decltype(&dtFreeNavMesh)>;
+
+    NavMeshPtr makeNavMesh(const AgentParams& agentParams, const RecastMesh& recastMesh)
+    {
+        const auto maxEdgeLen = 12;
+        const auto regionMinSize = 8;
+        const auto regionMergeSize = 20;
+        const auto detailSampleDist = 6.0f;
+        const auto detailSampleMaxError = 1.0f;
+
+        rcContext context;
+        rcConfig config;
+
+        config.tileSize = 0;
+        config.cs = 0.2f;
+        config.ch = 0.2f;
+        config.walkableSlopeAngle = sMaxSlope;
+        config.walkableHeight = int(std::ceil(agentParams.mHeight / config.ch));
+        config.walkableClimb = int(std::floor(agentParams.mMaxClimb / config.ch));
+        config.walkableRadius = int(std::ceil(agentParams.mRadius / config.cs));
+        config.maxEdgeLen = int(std::round(maxEdgeLen / config.cs));
+        config.maxSimplificationError = 1.3f;
+        config.minRegionArea = regionMinSize * regionMinSize;
+        config.mergeRegionArea = regionMergeSize * regionMergeSize;
+        config.maxVertsPerPoly = 6;
+        config.detailSampleDist = detailSampleDist < 0.9f ? 0 : config.cs * detailSampleDist;
+        config.detailSampleMaxError = config.cs * detailSampleMaxError;
+
+        rcCalcBounds(recastMesh.getVertices().data(), int(recastMesh.getVerticesCount()), config.bmin, config.bmax);
+
+        rcCalcGridSize(config.bmin, config.bmax, config.cs, &config.width, &config.height);
+
+        rcHeightfield solid;
+        if (!rcCreateHeightfield(nullptr, solid, config.width, config.height, config.bmin, config.bmax,
+                                 config.cs, config.ch))
+            throw NavigatorException("rcCreateHeightfield failed");
+
+        std::vector<unsigned char> areas(recastMesh.getTrianglesCount(), 0);
+        rcMarkWalkableTriangles(
+            &context,
+            config.walkableSlopeAngle,
+            recastMesh.getVertices().data(),
+            int(recastMesh.getVerticesCount()),
+            recastMesh.getIndices().data(),
+            int(recastMesh.getTrianglesCount()),
+            areas.data()
+        );
+
+        if (!rcRasterizeTriangles(
+            &context,
+            recastMesh.getVertices().data(),
+            int(recastMesh.getVerticesCount()),
+            recastMesh.getIndices().data(),
+            areas.data(),
+            int(recastMesh.getTrianglesCount()),
+            solid,
+            config.walkableClimb
+        ))
+            throw NavigatorException("rcRasterizeTriangles failed");
+
+        rcFilterLowHangingWalkableObstacles(&context, config.walkableClimb, solid);
+        rcFilterLedgeSpans(&context, config.walkableHeight, config.walkableClimb, solid);
+        rcFilterWalkableLowHeightSpans(&context, config.walkableHeight, solid);
+
+        rcPolyMesh polyMesh;
+        rcPolyMeshDetail polyMeshDetail;
+        {
+            rcCompactHeightfield compact;
+            compact.dist = nullptr;
+
+            if (!rcBuildCompactHeightfield(&context, config.walkableHeight, config.walkableClimb, solid, compact))
+                throw NavigatorException("rcBuildCompactHeightfield failed");
+
+            if (!rcErodeWalkableArea(&context, config.walkableRadius, compact))
+                throw NavigatorException("rcErodeWalkableArea failed");
+
+            if (!rcBuildDistanceField(&context, compact))
+                throw NavigatorException("rcBuildDistanceField failed");
+
+            if (!rcBuildRegions(&context, compact, 0, config.minRegionArea, config.mergeRegionArea))
+                throw NavigatorException("rcBuildRegions failed");
+
+            rcContourSet contourSet;
+            if (!rcBuildContours(&context, compact, config.maxSimplificationError, config.maxEdgeLen, contourSet))
+                throw NavigatorException("rcBuildContours failed");
+
+            if (!rcBuildPolyMesh(&context, contourSet, config.maxVertsPerPoly, polyMesh))
+                throw NavigatorException("rcBuildPolyMesh failed");
+
+            if (!rcBuildPolyMeshDetail(&context, polyMesh, compact, config.detailSampleDist,
+                                       config.detailSampleMaxError, polyMeshDetail))
+                throw NavigatorException("rcBuildPolyMeshDetail failed");
+        }
+
+        for (int i = 0; i < polyMesh.npolys; ++i)
+            if (polyMesh.areas[i] == RC_WALKABLE_AREA)
+                polyMesh.flags[i] = 1;
+
+        dtNavMeshCreateParams params;
+        params.verts = polyMesh.verts;
+        params.vertCount = polyMesh.nverts;
+        params.polys = polyMesh.polys;
+        params.polyAreas = polyMesh.areas;
+        params.polyFlags = polyMesh.flags;
+        params.polyCount = polyMesh.npolys;
+        params.nvp = polyMesh.nvp;
+        params.detailMeshes = polyMeshDetail.meshes;
+        params.detailVerts = polyMeshDetail.verts;
+        params.detailVertsCount = polyMeshDetail.nverts;
+        params.detailTris = polyMeshDetail.tris;
+        params.detailTriCount = polyMeshDetail.ntris;
+        params.offMeshConVerts = nullptr;
+        params.offMeshConRad = nullptr;
+        params.offMeshConDir = nullptr;
+        params.offMeshConAreas = nullptr;
+        params.offMeshConFlags = nullptr;
+        params.offMeshConUserID = nullptr;
+        params.offMeshConCount = 0;
+        params.walkableHeight = agentParams.mHeight;
+        params.walkableRadius = agentParams.mRadius;
+        params.walkableClimb = agentParams.mMaxClimb;
+        rcVcopy(params.bmin, polyMesh.bmin);
+        rcVcopy(params.bmax, polyMesh.bmax);
+        params.cs = config.cs;
+        params.ch = config.ch;
+        params.buildBvTree = true;
+        params.userId = 0;
+        params.tileX = 0;
+        params.tileY = 0;
+        params.tileLayer = 0;
+        rcVcopy(params.bmin, config.bmin);
+        rcVcopy(params.bmax, config.bmax);
+
+        unsigned char* navData;
+        int navDataSize;
+        if (!dtCreateNavMeshData(&params, &navData, &navDataSize))
+            throw NavigatorException("dtCreateNavMeshData failed");
+
+        NavMeshPtr navMesh(dtAllocNavMesh(), &dtFreeNavMesh);
+        if (!dtStatusSucceed(navMesh->init(navData, navDataSize, DT_TILE_FREE_DATA)))
+            throw NavigatorException("dtNavMesh::init failed");
+
+        return navMesh;
+    }
+
+    class NavMeshManager
+    {
+    public:
+        template <class T>
+        bool addObject(T* object)
+        {
+            return mRecastMeshManager.addObject(object);
+        }
+
+        template <class T>
+        bool removeObject(T* object)
+        {
+            return mRecastMeshManager.removeObject(object);
+        }
+
+        NavMeshPtr getNavMesh(const AgentParams& agentParams)
+        {
+            return makeNavMesh(agentParams, mRecastMeshManager.getMesh());
+        }
+
+    private:
+        RecastMeshManagerCache mRecastMeshManager;
+    };
+
+    class NavMeshManagerCache
+    {
+    public:
+        template <class T>
+        bool addObject(T* object)
+        {
+            if (!mImpl.addObject(object))
+                return false;
+            mCache.clear();
+            return true;
+        }
+
+        template <class T>
+        bool removeObject(T* object)
+        {
+            if (!mImpl.removeObject(object))
+                return false;
+            mCache.clear();
+            return true;
+        }
+
+        const dtNavMesh* getNavMesh(const AgentParams& agentParams)
+        {
+            auto it = mCache.find(agentParams);
+            if (it == mCache.end())
+                it = mCache.insert({agentParams, mImpl.getNavMesh(agentParams)}).first;
+            return it->second.get();
+        }
+
+    private:
+        NavMeshManager mImpl;
+        std::map<AgentParams, NavMeshPtr, LessAgentParams> mCache;
+    };
+
+    namespace
+    {
+
+        bool inRange(const float* v1, const float* v2, const float r, const float h)
+        {
+            const float dx = v2[0] - v1[0];
+            const float dy = v2[1] - v1[1];
+            const float dz = v2[2] - v1[2];
+            return (dx * dx + dz * dz) < r * r && std::abs(dy) < h;
+        }
+
+        int fixupCorridor(dtPolyRef* path, const int npath, const int maxPath,
+                          const dtPolyRef* visited, const int nvisited)
+        {
+            int furthestPath = -1;
+            int furthestVisited = -1;
+
+            // Find furthest common polygon.
+            for (int i = npath-1; i >= 0; --i)
+            {
+                bool found = false;
+                for (int j = nvisited-1; j >= 0; --j)
+                {
+                    if (path[i] == visited[j])
+                    {
+                        furthestPath = i;
+                        furthestVisited = j;
+                        found = true;
+                    }
+                }
+                if (found)
+                    break;
+            }
+
+            // If no intersection found just return current path.
+            if (furthestPath == -1 || furthestVisited == -1)
+                return npath;
+
+            // Concatenate paths.
+
+            // Adjust beginning of the buffer to include the visited.
+            const int req = nvisited - furthestVisited;
+            const int orig = rcMin(furthestPath+1, npath);
+            int size = rcMax(0, npath-orig);
+            if (req+size > maxPath)
+                size = maxPath-req;
+            if (size)
+                memmove(path+req, path+orig, std::size_t(size) * sizeof(dtPolyRef));
+
+            // Store visited
+            for (int i = 0; i < req; ++i)
+                path[i] = visited[(nvisited-1)-i];
+
+            return req+size;
+        }
+
+        // This function checks if the path has a small U-turn, that is,
+        // a polygon further in the path is adjacent to the first polygon
+        // in the path. If that happens, a shortcut is taken.
+        // This can happen if the target (T) location is at tile boundary,
+        // and we're (S) approaching it parallel to the tile edge.
+        // The choice at the vertex can be arbitrary,
+        //  +---+---+
+        //  |:::|:::|
+        //  +-S-+-T-+
+        //  |:::|   | <-- the step can end up in here, resulting U-turn path.
+        //  +---+---+
+        int fixupShortcuts(dtPolyRef* path, int npath, const dtNavMeshQuery& navQuery)
+        {
+            if (npath < 3)
+                return npath;
+
+            // Get connected polygons
+            static const int maxNeis = 16;
+            dtPolyRef neis[maxNeis];
+            int nneis = 0;
+
+            const dtMeshTile* tile = 0;
+            const dtPoly* poly = 0;
+            if (dtStatusFailed(navQuery.getAttachedNavMesh()->getTileAndPolyByRef(path[0], &tile, &poly)))
+                return npath;
+
+            for (unsigned int k = poly->firstLink; k != DT_NULL_LINK; k = tile->links[k].next)
+            {
+                const dtLink* link = &tile->links[k];
+                if (link->ref != 0)
+                {
+                    if (nneis < maxNeis)
+                        neis[nneis++] = link->ref;
+                }
+            }
+
+            // If any of the neighbour polygons is within the next few polygons
+            // in the path, short cut to that polygon directly.
+            static const int maxLookAhead = 6;
+            int cut = 0;
+            for (int i = dtMin(maxLookAhead, npath) - 1; i > 1 && cut == 0; i--)
+            {
+                for (int j = 0; j < nneis; j++)
+                {
+                    if (path[i] == neis[j])
+                    {
+                        cut = i;
+                        break;
+                    }
+                }
+            }
+            if (cut > 1)
+            {
+                int offset = cut-1;
+                npath -= offset;
+                for (int i = 1; i < npath; i++)
+                    path[i] = path[i+offset];
+            }
+
+            return npath;
+        }
+
+        bool getSteerTarget(const dtNavMeshQuery& navQuery, const float* startPos, const float* endPos,
+            const float minTargetDist, const dtPolyRef* path, const int pathSize,
+            float* steerPos, unsigned char& steerPosFlag, dtPolyRef& steerPosRef)
+        {
+            // Find steer target.
+            static const int MAX_STEER_POINTS = 3;
+            float steerPath[MAX_STEER_POINTS*3];
+            unsigned char steerPathFlags[MAX_STEER_POINTS];
+            dtPolyRef steerPathPolys[MAX_STEER_POINTS];
+            int nsteerPath = 0;
+            navQuery.findStraightPath(startPos, endPos, path, pathSize, steerPath, steerPathFlags,
+                                      steerPathPolys, &nsteerPath, MAX_STEER_POINTS);
+            if (!nsteerPath)
+                return false;
+
+            // Find vertex far enough to steer to.
+            int ns = 0;
+            while (ns < nsteerPath)
+            {
+                // Stop at Off-Mesh link or when point is further than slop away.
+                if ((steerPathFlags[ns] & DT_STRAIGHTPATH_OFFMESH_CONNECTION) ||
+                    !inRange(&steerPath[ns*3], startPos, minTargetDist, 1000.0f))
+                    break;
+                ns++;
+            }
+            // Failed to find good point to steer to.
+            if (ns >= nsteerPath)
+                return false;
+
+            dtVcopy(steerPos, &steerPath[ns*3]);
+            steerPos[1] = startPos[1];
+            steerPosFlag = steerPathFlags[ns];
+            steerPosRef = steerPathPolys[ns];
+
+            return true;
+        }
+
+        osg::Vec3f makeOsgVec3f(const float* values)
+        {
+            return osg::Vec3f(values[0], values[1], values[2]);
+        }
+
+        std::vector<osg::Vec3f> makeSmoothPath(const dtNavMesh& navMesh, const dtNavMeshQuery& navMeshQuery,
+            const dtQueryFilter& filter, const osg::Vec3f& start, const osg::Vec3f& end,
+            std::vector<dtPolyRef> polygonPath)
+        {
+            // Iterate over the path to find smooth path on the detail mesh surface.
+            auto polys = polygonPath.data();
+            const auto maxPolygons = int(polygonPath.size());
+            auto npolys = int(polygonPath.size());
+            const auto spos = start.ptr();
+            const auto epos = end.ptr();
+
+            float iterPos[3], targetPos[3];
+            navMeshQuery.closestPointOnPoly(polys[0], spos, iterPos, 0);
+            navMeshQuery.closestPointOnPoly(polys[npolys-1], epos, targetPos, 0);
+
+            static const float STEP_SIZE = 0.5f;
+            static const float SLOP = 0.01f;
+
+            std::vector<osg::Vec3f> smoothPath;
+
+            smoothPath.push_back(makeOsgVec3f(iterPos));
+
+            // Move towards target a small advancement at a time until target reached or
+            // when ran out of memory to store the path.
+            while (npolys)
+            {
+                // Find location to steer towards.
+                float steerPos[3];
+                unsigned char steerPosFlag;
+                dtPolyRef steerPosRef;
+
+                if (!getSteerTarget(navMeshQuery, iterPos, targetPos, SLOP, polys, npolys, steerPos,
+                                    steerPosFlag, steerPosRef))
+                    break;
+
+                bool endOfPath = (steerPosFlag & DT_STRAIGHTPATH_END) ? true : false;
+                bool offMeshConnection = (steerPosFlag & DT_STRAIGHTPATH_OFFMESH_CONNECTION) ? true : false;
+
+                // Find movement delta.
+                float delta[3], len;
+                dtVsub(delta, steerPos, iterPos);
+                len = dtMathSqrtf(dtVdot(delta, delta));
+                // If the steer target is end of path or off-mesh link, do not move past the location.
+                if ((endOfPath || offMeshConnection) && len < STEP_SIZE)
+                    len = 1;
+                else
+                    len = STEP_SIZE / len;
+                float moveTgt[3];
+                dtVmad(moveTgt, iterPos, delta, len);
+
+                // Move
+                float result[3];
+                dtPolyRef visited[16];
+                int nvisited = 0;
+                navMeshQuery.moveAlongSurface(polys[0], iterPos, moveTgt, &filter, result, visited, &nvisited, 16);
+
+                npolys = fixupCorridor(polys, npolys, maxPolygons, visited, nvisited);
+                npolys = fixupShortcuts(polys, npolys, navMeshQuery);
+
+                float h = 0;
+                navMeshQuery.getPolyHeight(polys[0], result, &h);
+                result[1] = h;
+                dtVcopy(iterPos, result);
+
+                // Handle end of path and off-mesh links when close enough.
+                if (endOfPath && inRange(iterPos, steerPos, SLOP, 1.0f))
+                {
+                    // Reached end of path.
+                    dtVcopy(iterPos, targetPos);
+                    smoothPath.push_back(makeOsgVec3f(iterPos));
+                    break;
+                }
+                else if (offMeshConnection && inRange(iterPos, steerPos, SLOP, 1.0f))
+                {
+                    // Reached off-mesh connection.
+                    float startPos[3], endPos[3];
+
+                    // Advance the path up to and over the off-mesh connection.
+                    dtPolyRef prevRef = 0, polyRef = polys[0];
+                    int npos = 0;
+                    while (npos < npolys && polyRef != steerPosRef)
+                    {
+                        prevRef = polyRef;
+                        polyRef = polys[npos];
+                        npos++;
+                    }
+                    for (int i = npos; i < npolys; ++i)
+                        polys[i-npos] = polys[i];
+                    npolys -= npos;
+
+                    // Handle the connection.
+                    const auto status = navMesh.getOffMeshConnectionPolyEndPoints(prevRef, polyRef, startPos, endPos);
+                    if (dtStatusSucceed(status))
+                    {
+                        smoothPath.push_back(makeOsgVec3f(startPos));
+
+                        // Hack to make the dotted path not visible during off-mesh connection.
+                        if (smoothPath.size() & 1)
+                        {
+                            smoothPath.push_back(makeOsgVec3f(startPos));
+                        }
+
+                        // Move position at the other side of the off-mesh link.
+                        dtVcopy(iterPos, endPos);
+                        float eh = 0.0f;
+                        navMeshQuery.getPolyHeight(polys[0], iterPos, &eh);
+                        iterPos[1] = eh;
+                    }
+                }
+
+                // Store results.
+                smoothPath.push_back(makeOsgVec3f(iterPos));
+            }
+
+            return smoothPath;
+        }
+
+        std::vector<osg::Vec3f> findSmoothPath(const dtNavMesh& navMesh, osg::Vec3f halfExtents,
+                                               osg::Vec3f start, osg::Vec3f end,
+                                               std::size_t maxPathLength = 1024, int maxNodes = 2048)
+        {
+            dtNavMeshQuery navMeshQuery;
+            if (!dtStatusSucceed(navMeshQuery.init(&navMesh, maxNodes)))
+                throw NavigatorException("dtNavMeshQuery::init failed");
+
+            // Detour uses second coordinate as height
+            std::swap(start.y(), start.z());
+            std::swap(end.y(), end.z());
+            std::swap(halfExtents.y(), halfExtents.z());
+
+            dtQueryFilter queryFilter;
+
+            dtPolyRef startRef;
+            float startPolygonPosition[3];
+            if (!dtStatusSucceed(navMeshQuery.findNearestPoly(start.ptr(), halfExtents.ptr(), &queryFilter, &startRef,
+                                                              startPolygonPosition)))
+                throw NavigatorException("dtNavMeshQuery::findNearestPoly failed for start");
+
+            if (startRef == 0)
+                throw NavigatorException("start polygon is not found");
+
+            dtPolyRef endRef;
+            float endPolygonPosition[3];
+            if (!dtStatusSucceed(navMeshQuery.findNearestPoly(end.ptr(), halfExtents.ptr(), &queryFilter, &endRef,
+                                                              endPolygonPosition)))
+                throw NavigatorException("dtNavMeshQuery::findNearestPoly failed for end");
+
+            if (endRef == 0)
+                throw NavigatorException("end polygon is not found");
+
+            std::vector<dtPolyRef> polygonPath(maxPathLength);
+            int pathLen;
+            if (!dtStatusSucceed(navMeshQuery.findPath(startRef, endRef, start.ptr(), end.ptr(), &queryFilter,
+                                                       polygonPath.data(), &pathLen, int(polygonPath.size()))))
+                throw NavigatorException("dtNavMeshQuery::findPath failed");
+            polygonPath.resize(std::size_t(pathLen));
+
+            if (polygonPath.empty())
+                return std::vector<osg::Vec3f>();
+
+            auto result = makeSmoothPath(navMesh, navMeshQuery, queryFilter, start, end, std::move(polygonPath));
+
+            // Swap coordinates back
+            for (auto& v : result)
+                std::swap(v.y(), v.z());
+
+            return result;
+        }
+
+    }
+
+    static std::ostream& operator <<(std::ostream& stream, const osg::Vec3f& value)
+    {
+        return stream << '(' << value.x() << ", " << value.y() << ", " << value.z() << ')';
+    }
+
+    class NavigatorImpl
+    {
+    public:
+        NavigatorImpl(std::map<MWWorld::ConstPtr, Actor*>& actors)
+            : mActors(actors)
+        {}
+
+        template <class T>
+        bool addObject(T* object)
+        {
+            std::cout << "NavigatorImpl::addObject object=" << object << std::endl;
+            return mNavMeshManager.addObject(object);
+        }
+
+        template <class T>
+        bool removeObject(T* object)
+        {
+            std::cout << "NavigatorImpl::removeObject object=" << object << std::endl;
+            return mNavMeshManager.removeObject(object);
+        }
+
+        std::vector<osg::Vec3f> findPath(const MWWorld::ConstPtr& actorPtr,
+                                         const osg::Vec3f& start, const osg::Vec3f& end)
+        {
+            std::cout << "NavigatorImpl::findPath actor=" << actorPtr.getBase()
+                      << " start=" << start << " end=" << end << std::endl;
+            const auto& actor = *mActors.at(actorPtr);
+            AgentParams agentParams;
+            agentParams.mHeight = 2.0f * actor.getHalfExtents().z() * recastScaleFactor;
+            agentParams.mMaxClimb = sStepSizeUp * recastScaleFactor;
+            agentParams.mRadius = actor.getHalfExtents().x() * recastScaleFactor;
+            const auto navMesh = mNavMeshManager.getNavMesh(agentParams);
+            auto result = findSmoothPath(*navMesh, actor.getHalfExtents(), start * recastScaleFactor,
+                                         end * recastScaleFactor);
+            for (auto& v : result)
+                v *= invertedRecastScaleFactor;
+            return result;
+        }
+
+    private:
+        std::map<MWWorld::ConstPtr, Actor*>& mActors;
+        NavMeshManagerCache mNavMeshManager;
+    };
+
+    Navigator::Navigator(NavigatorImpl& impl)
+        : mImpl(&impl)
+    {}
+
+    std::vector<osg::Vec3f> Navigator::findPath(const MWWorld::ConstPtr& actor,
+                                                const osg::Vec3f& start, const osg::Vec3f& end) const
+    {
+        return mImpl->findPath(actor, start, end);
+    }
+
+    // ---------------------------------------------------------------
+
     PhysicsSystem::PhysicsSystem(Resource::ResourceSystem* resourceSystem, osg::ref_ptr<osg::Group> parentNode)
         : mShapeManager(new Resource::BulletShapeManager(resourceSystem->getVFS(), resourceSystem->getSceneManager(), resourceSystem->getNifFileManager()))
         , mResourceSystem(resourceSystem)
@@ -683,6 +1567,7 @@ namespace MWPhysics
         , mWaterEnabled(false)
         , mParentNode(parentNode)
         , mPhysicsDt(1.f / 60.f)
+        , mNavigator(new NavigatorImpl(mActors))
     {
         mResourceSystem->addResourceManager(mShapeManager.get());
 
@@ -1145,6 +2030,8 @@ namespace MWPhysics
 
         mCollisionWorld->addCollisionObject(heightfield->getCollisionObject(), CollisionType_HeightMap,
             CollisionType_Actor|CollisionType_Projectile);
+
+        mNavigator->addObject(heightfield);
     }
 
     void PhysicsSystem::removeHeightField (int x, int y)
@@ -1152,6 +2039,7 @@ namespace MWPhysics
         HeightFieldMap::iterator heightfield = mHeightFields.find(std::make_pair(x,y));
         if(heightfield != mHeightFields.end())
         {
+            mNavigator->removeObject(heightfield->second);
             mCollisionWorld->removeCollisionObject(heightfield->second->getCollisionObject());
             delete heightfield->second;
             mHeightFields.erase(heightfield);
@@ -1172,6 +2060,8 @@ namespace MWPhysics
 
         mCollisionWorld->addCollisionObject(obj->getCollisionObject(), collisionType,
                                            CollisionType_Actor|CollisionType_HeightMap|CollisionType_Projectile);
+
+        mNavigator->addObject(obj);
     }
 
     void PhysicsSystem::remove(const MWWorld::Ptr &ptr)
@@ -1179,6 +2069,7 @@ namespace MWPhysics
         ObjectMap::iterator found = mObjects.find(ptr);
         if (found != mObjects.end())
         {
+            mNavigator->removeObject(found->second);
             mCollisionWorld->removeCollisionObject(found->second->getCollisionObject());
 
             if (mUnrefQueue.get())
@@ -1545,5 +2436,10 @@ namespace MWPhysics
         mWaterCollisionObject->setCollisionShape(mWaterCollisionShape.get());
         mCollisionWorld->addCollisionObject(mWaterCollisionObject.get(), CollisionType_Water,
                                                     CollisionType_Actor);
+    }
+
+    Navigator PhysicsSystem::getNavigator() const
+    {
+        return Navigator(*mNavigator);
     }
 }

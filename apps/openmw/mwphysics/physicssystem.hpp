@@ -48,6 +48,24 @@ namespace MWPhysics
     class HeightField;
     class Object;
     class Actor;
+    class NavigatorImpl;
+
+    struct NavigatorException : std::runtime_error {
+        NavigatorException(const std::string& message) : std::runtime_error(message) {}
+        NavigatorException(const char* message) : std::runtime_error(message) {}
+    };
+
+    class Navigator
+    {
+    public:
+        Navigator(NavigatorImpl& impl);
+
+        std::vector<osg::Vec3f> findPath(const MWWorld::ConstPtr& actor,
+                                         const osg::Vec3f& start, const osg::Vec3f& end) const;
+
+    private:
+        NavigatorImpl* mImpl;
+    };
 
     class PhysicsSystem
     {
@@ -170,6 +188,8 @@ namespace MWPhysics
 
             bool isOnSolidGround (const MWWorld::Ptr& actor) const;
 
+            Navigator getNavigator() const;
+
         private:
 
             void updateWater();
@@ -221,6 +241,8 @@ namespace MWPhysics
             osg::ref_ptr<osg::Group> mParentNode;
 
             float mPhysicsDt;
+
+            std::unique_ptr<NavigatorImpl> mNavigator;
 
             PhysicsSystem (const PhysicsSystem&);
             PhysicsSystem& operator= (const PhysicsSystem&);

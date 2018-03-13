@@ -3485,4 +3485,9 @@ namespace MWWorld
         }
     }
 
+    MWPhysics::Navigator World::getNavigator() const
+    {
+        return mPhysics->getNavigator();
+    }
+
 }

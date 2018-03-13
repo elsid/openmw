@@ -1,6 +1,7 @@
 #include "aipackage.hpp"
 
 #include <cmath>
+#include <iostream>
 
 #include <components/esm/loadcell.hpp>
 #include <components/esm/loadland.hpp>
@@ -13,6 +14,8 @@
 #include "../mwworld/class.hpp"
 #include "../mwworld/cellstore.hpp"
 #include "../mwworld/inventorystore.hpp"
+
+#include "../mwphysics/physicssystem.hpp"
 
 #include "pathgrid.hpp"
 #include "creaturestats.hpp"
@@ -117,22 +120,25 @@ bool MWMechanics::AiPackage::pathTo(const MWWorld::Ptr& actor, const ESM::Pathgr
         {
             if (wasShortcutting || doesPathNeedRecalc(dest, actor.getCell())) // if need to rebuild path
             {
-                mPathFinder.buildSyncedPath(start, dest, actor.getCell(), getPathGridGraph(actor.getCell()));
-                mRotateOnTheRunChecks = 3;
-
-                // give priority to go directly on target if there is minimal opportunity
-                if (destInLOS && mPathFinder.getPath().size() > 1)
+                if (!buildOptimalPath(actor, pos, osg::Vec3f(dest.mX, dest.mY, dest.mZ)))
                 {
-                    // get point just before dest
-                    std::list<ESM::Pathgrid::Point>::const_iterator pPointBeforeDest = mPathFinder.getPath().end();
-                    --pPointBeforeDest;
-                    --pPointBeforeDest;
+                    mPathFinder.buildSyncedPath(start, dest, actor.getCell(), getPathGridGraph(actor.getCell()));
+                    mRotateOnTheRunChecks = 3;
 
-                    // if start point is closer to the target then last point of path (excluding target itself) then go straight on the target
-                    if (distance(start, dest) <= distance(dest, *pPointBeforeDest))
+                    // give priority to go directly on target if there is minimal opportunity
+                    if (destInLOS && mPathFinder.getPath().size() > 1)
                     {
-                        mPathFinder.clearPath();
-                        mPathFinder.addPointToPath(dest);
+                        // get point just before dest
+                        std::list<ESM::Pathgrid::Point>::const_iterator pPointBeforeDest = mPathFinder.getPath().end();
+                        --pPointBeforeDest;
+                        --pPointBeforeDest;
+
+                        // if start point is closer to the target then last point of path (excluding target itself) then go straight on the target
+                        if (distance(start, dest) <= distance(dest, *pPointBeforeDest))
+                        {
+                            mPathFinder.clearPath();
+                            mPathFinder.addPointToPath(dest);
+                        }
                     }
                 }
             }
@@ -372,4 +378,32 @@ bool MWMechanics::AiPackage::isReachableRotatingOnTheRun(const MWWorld::Ptr& act
     // if pathpoint is reachable for the actor rotating on the run:
     // no points of actor's circle should be farther from the center than destination point
     return (radius <= distToDest);
+}
+
+bool MWMechanics::AiPackage::buildOptimalPath(const MWWorld::Ptr& actor, const ESM::Position& startPosition, const osg::Vec3f& endPosition)
+{
+    try
+    {
+        const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
+        const auto path = navigator.findPath(actor, startPosition.asVec3(), endPosition);
+
+        if (path.empty())
+            return false;
+
+        mPathFinder.clearPath();
+        for (const auto point : path)
+        {
+            std::cout << "(" << point.x() << ", " << point.y() << ", " << point.z() << "), ";
+            const float coordinates[] = {point.x(), point.y(), point.z()};
+            mPathFinder.addPointToPath(ESM::Pathgrid::Point(coordinates));
+        }
+        std::cout << '\n';
+
+        return true;
+    }
+    catch (const MWPhysics::NavigatorException& exception)
+    {
+        std::cerr << exception.what() << '\n';
+        return false;
+    }
 }
