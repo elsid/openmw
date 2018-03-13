@@ -1,0 +1,30 @@
+message(STATUS "RECAST_ROOT: ${RECAST_ROOT}")
+message(STATUS "ENV{RECAST_ROOT}: $ENV{RECAST_ROOT}")
+
+find_path(RECAST_INCLUDE_DIR
+    NAMES Recast.h
+    HINTS $ENV{RECAST_ROOT}
+        ${RECAST_ROOT}
+    PATH_SUFFIXES include
+)
+mark_as_advanced(RECAST_INCLUDE_DIR)
+
+message(STATUS "RECAST_INCLUDE_DIR: ${RECAST_INCLUDE_DIR}")
+
+find_library(RECAST_LIBRARY
+    NAMES Recast
+    HINTS $ENV{RECAST_ROOT}
+        ${RECAST_ROOT}
+    PATH_SUFFIXES lib
+)
+mark_as_advanced(RECAST_LIBRARY)
+
+message(STATUS "RECAST_LIBRARY: ${RECAST_LIBRARY}")
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(Recast DEFAULT_MSG RECAST_LIBRARY RECAST_INCLUDE_DIR)
+
+if(RECAST_FOUND)
+    set(RECAST_INCLUDE_DIRS ${RECAST_INCLUDE_DIR})
+    set(RECAST_LIBRARIES ${RECAST_LIBRARY})
+endif()

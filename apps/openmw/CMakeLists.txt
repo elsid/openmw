@@ -119,6 +119,12 @@ include_directories(
     ${FFmpeg_INCLUDE_DIRS}
 )
 
+find_package(Recast REQUIRED)
+find_package(Detour REQUIRED)
+
+include_directories(SYSTEM ${RECAST_INCLUDE_DIRS})
+include_directories(SYSTEM ${DETOUR_INCLUDE_DIRS})
+
 target_link_libraries(openmw
     ${OSG_LIBRARIES}
     ${OPENTHREADS_LIBRARIES}
@@ -135,6 +141,8 @@ target_link_libraries(openmw
     ${FFmpeg_LIBRARIES}
     ${MyGUI_LIBRARIES}
     ${SDL2_LIBRARY}
+    ${RECAST_LIBRARIES}
+    ${DETOUR_LIBRARIES}
     "osg-ffmpeg-videoplayer"
     "oics"
     components
