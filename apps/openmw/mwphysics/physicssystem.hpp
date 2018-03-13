@@ -85,6 +85,8 @@ namespace MWPhysics
 
             void removeHeightField (int x, int y);
 
+            const HeightField* getHeightField(int x, int y) const;
+
             bool toggleCollisionMode();
 
             void stepSimulation(float dt);
@@ -169,7 +171,6 @@ namespace MWPhysics
             void markAsNonSolid (const MWWorld::ConstPtr& ptr);
 
             bool isOnSolidGround (const MWWorld::Ptr& actor) const;
-
         private:
 
             void updateWater();
