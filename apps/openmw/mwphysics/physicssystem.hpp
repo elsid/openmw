@@ -50,7 +50,8 @@ namespace MWPhysics
     class Actor;
     class NavigatorImpl;
 
-    struct NavigatorException : std::runtime_error {
+    struct NavigatorException : std::runtime_error
+    {
         NavigatorException(const std::string& message) : std::runtime_error(message) {}
         NavigatorException(const char* message) : std::runtime_error(message) {}
     };

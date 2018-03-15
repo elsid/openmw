@@ -689,8 +689,8 @@ namespace MWPhysics
     // ---------------------------------------------------------------
 
     // Scale all coordinates to change order of values to make rcCreateHeightfield work
-    static constexpr float invertedRecastScaleFactor = 64.0f;
-    static constexpr float recastScaleFactor = 1.0f / invertedRecastScaleFactor;
+    static const float invertedRecastScaleFactor = 64.0f;
+    static const float recastScaleFactor = 1.0f / invertedRecastScaleFactor;
 
     class RecastMesh
     {
@@ -1157,7 +1157,7 @@ namespace MWPhysics
         {
             auto it = mCache.find(agentParams);
             if (it == mCache.end())
-                it = mCache.insert({agentParams, mImpl.getNavMesh(agentParams)}).first;
+                it = mCache.insert(std::make_pair(agentParams, mImpl.getNavMesh(agentParams))).first;
             return it->second.get();
         }
 

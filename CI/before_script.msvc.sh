@@ -650,6 +650,17 @@ printf "SDL 2.0.7... "
 echo
 
 
+# recastnavigation
+printf 'recastnavigation...'
+{
+	${DEPS_INSTALL}/../../CI/build_recastnavigation.sh "${GENERATOR}"
+	add_cmake_opts \
+		-DRECAST_ROOT="$(pwd)/recastnavigation/build" \
+		-DDETOUR_ROOT="$(pwd)/recastnavigation/build"
+}
+echo
+
+
 cd $DEPS_INSTALL/..
 
 echo
