@@ -1,9 +1,10 @@
-#include "physicssystem.hpp"
+﻿#include "physicssystem.hpp"
 
 #include <iostream>
 #include <stdexcept>
 #include <unordered_set>
 #include <fstream>
+#include <array>
 
 #include <boost/optional.hpp>
 
@@ -688,6 +689,63 @@ namespace MWPhysics
 
     // ---------------------------------------------------------------
 
+    namespace
+    {
+
+#define OPENMW_DT_STATUS(status) {status, #status}
+
+        static const std::vector<std::pair<dtStatus, const char*>> dtStatuses {
+            OPENMW_DT_STATUS(DT_FAILURE),
+            OPENMW_DT_STATUS(DT_SUCCESS),
+            OPENMW_DT_STATUS(DT_IN_PROGRESS),
+            OPENMW_DT_STATUS(DT_WRONG_MAGIC),
+            OPENMW_DT_STATUS(DT_WRONG_VERSION),
+            OPENMW_DT_STATUS(DT_OUT_OF_MEMORY),
+            OPENMW_DT_STATUS(DT_INVALID_PARAM),
+            OPENMW_DT_STATUS(DT_BUFFER_TOO_SMALL),
+            OPENMW_DT_STATUS(DT_OUT_OF_NODES),
+            OPENMW_DT_STATUS(DT_PARTIAL_RESULT),
+        };
+
+#undef OPENMW_DT_STATUS
+
+        struct WriteDtStatus
+        {
+            dtStatus status;
+        };
+
+        std::ostream& operator <<(std::ostream& stream, const WriteDtStatus& value)
+        {
+            for (const auto& status : dtStatuses)
+                if (value.status & status.first)
+                    stream << status.second << " ";
+            return stream;
+        }
+
+        void checkDtStatus(dtStatus status, const char* call, int line)
+        {
+            if (!dtStatusSucceed(status))
+            {
+                std::ostringstream message;
+                message << call << " failed with status=" << WriteDtStatus {status} << " at " __FILE__ ":" << line;
+                throw NavigatorException(message.str());
+            }
+        }
+
+        void checkDtResult(bool result, const char* call, int line)
+        {
+            if (!result)
+            {
+                std::ostringstream message;
+                message << call << " failed at " __FILE__ ":" << line;
+                throw NavigatorException(message.str());
+            }
+        }
+    }
+
+#define OPENMW_CHECK_DT_STATUS(call) do { checkDtStatus((call), #call, __LINE__); } while (false)
+#define OPENMW_CHECK_DT_RESULT(call) do { checkDtResult((call), #call, __LINE__); } while (false)
+
     // Scale all coordinates to change order of values to make rcCreateHeightfield work
     static const float invertedRecastScaleFactor = 64.0f;
     static const float recastScaleFactor = 1.0f / invertedRecastScaleFactor;
@@ -996,9 +1054,8 @@ namespace MWPhysics
         rcCalcGridSize(config.bmin, config.bmax, config.cs, &config.width, &config.height);
 
         rcHeightfield solid;
-        if (!rcCreateHeightfield(nullptr, solid, config.width, config.height, config.bmin, config.bmax,
-                                 config.cs, config.ch))
-            throw NavigatorException("rcCreateHeightfield failed");
+        OPENMW_CHECK_DT_RESULT(rcCreateHeightfield(nullptr, solid, config.width, config.height, config.bmin, config.bmax,
+                                                   config.cs, config.ch));
 
         std::vector<unsigned char> areas(recastMesh.getTrianglesCount(), 0);
         rcMarkWalkableTriangles(
@@ -1011,7 +1068,7 @@ namespace MWPhysics
             areas.data()
         );
 
-        if (!rcRasterizeTriangles(
+        OPENMW_CHECK_DT_RESULT(rcRasterizeTriangles(
             &context,
             recastMesh.getVertices().data(),
             int(recastMesh.getVerticesCount()),
@@ -1020,8 +1077,7 @@ namespace MWPhysics
             int(recastMesh.getTrianglesCount()),
             solid,
             config.walkableClimb
-        ))
-            throw NavigatorException("rcRasterizeTriangles failed");
+        ));
 
         rcFilterLowHangingWalkableObstacles(&context, config.walkableClimb, solid);
         rcFilterLedgeSpans(&context, config.walkableHeight, config.walkableClimb, solid);
@@ -1033,28 +1089,18 @@ namespace MWPhysics
             rcCompactHeightfield compact;
             compact.dist = nullptr;
 
-            if (!rcBuildCompactHeightfield(&context, config.walkableHeight, config.walkableClimb, solid, compact))
-                throw NavigatorException("rcBuildCompactHeightfield failed");
-
-            if (!rcErodeWalkableArea(&context, config.walkableRadius, compact))
-                throw NavigatorException("rcErodeWalkableArea failed");
-
-            if (!rcBuildDistanceField(&context, compact))
-                throw NavigatorException("rcBuildDistanceField failed");
-
-            if (!rcBuildRegions(&context, compact, 0, config.minRegionArea, config.mergeRegionArea))
-                throw NavigatorException("rcBuildRegions failed");
+            OPENMW_CHECK_DT_RESULT(rcBuildCompactHeightfield(&context, config.walkableHeight, config.walkableClimb,
+                                                             solid, compact));
+            OPENMW_CHECK_DT_RESULT(rcErodeWalkableArea(&context, config.walkableRadius, compact));
+            OPENMW_CHECK_DT_RESULT(rcBuildDistanceField(&context, compact));
+            OPENMW_CHECK_DT_RESULT(rcBuildRegions(&context, compact, 0, config.minRegionArea, config.mergeRegionArea));
 
             rcContourSet contourSet;
-            if (!rcBuildContours(&context, compact, config.maxSimplificationError, config.maxEdgeLen, contourSet))
-                throw NavigatorException("rcBuildContours failed");
-
-            if (!rcBuildPolyMesh(&context, contourSet, config.maxVertsPerPoly, polyMesh))
-                throw NavigatorException("rcBuildPolyMesh failed");
-
-            if (!rcBuildPolyMeshDetail(&context, polyMesh, compact, config.detailSampleDist,
-                                       config.detailSampleMaxError, polyMeshDetail))
-                throw NavigatorException("rcBuildPolyMeshDetail failed");
+            OPENMW_CHECK_DT_RESULT(rcBuildContours(&context, compact, config.maxSimplificationError, config.maxEdgeLen,
+                                                   contourSet));
+            OPENMW_CHECK_DT_RESULT(rcBuildPolyMesh(&context, contourSet, config.maxVertsPerPoly, polyMesh));
+            OPENMW_CHECK_DT_RESULT(rcBuildPolyMeshDetail(&context, polyMesh, compact, config.detailSampleDist,
+                                                         config.detailSampleMaxError, polyMeshDetail));
         }
 
         for (int i = 0; i < polyMesh.npolys; ++i)
@@ -1098,12 +1144,10 @@ namespace MWPhysics
 
         unsigned char* navData;
         int navDataSize;
-        if (!dtCreateNavMeshData(&params, &navData, &navDataSize))
-            throw NavigatorException("dtCreateNavMeshData failed");
+        OPENMW_CHECK_DT_RESULT(dtCreateNavMeshData(&params, &navData, &navDataSize));
 
         NavMeshPtr navMesh(dtAllocNavMesh(), &dtFreeNavMesh);
-        if (!dtStatusSucceed(navMesh->init(navData, navDataSize, DT_TILE_FREE_DATA)))
-            throw NavigatorException("dtNavMesh::init failed");
+        OPENMW_CHECK_DT_STATUS(navMesh->init(navData, navDataSize, DT_TILE_FREE_DATA));
 
         return navMesh;
     }
@@ -1169,57 +1213,50 @@ namespace MWPhysics
     namespace
     {
 
-        bool inRange(const float* v1, const float* v2, const float r, const float h)
+        osg::Vec3f makeOsgVec3f(const float* values)
         {
-            const float dx = v2[0] - v1[0];
-            const float dy = v2[1] - v1[1];
-            const float dz = v2[2] - v1[2];
-            return (dx * dx + dz * dz) < r * r && std::abs(dy) < h;
+            return osg::Vec3f(values[0], values[1], values[2]);
         }
 
-        int fixupCorridor(dtPolyRef* path, const int npath, const int maxPath,
-                          const dtPolyRef* visited, const int nvisited)
+        bool inRange(const osg::Vec3f& v1, const osg::Vec3f& v2, const float r, const float h)
         {
-            int furthestPath = -1;
-            int furthestVisited = -1;
+            const auto d = v2 - v1;
+            return (d.x() * d.x() + d.z() * d.z()) < r * r && std::abs(d.y()) < h;
+        }
+
+        std::vector<dtPolyRef> fixupCorridor(const std::vector<dtPolyRef>& path, const std::vector<dtPolyRef>& visited)
+        {
+            std::vector<dtPolyRef>::const_iterator furthestVisited;
 
             // Find furthest common polygon.
-            for (int i = npath-1; i >= 0; --i)
+            const auto it = std::find_if(path.rbegin(), path.rend(), [&] (dtPolyRef pathValue)
             {
-                bool found = false;
-                for (int j = nvisited-1; j >= 0; --j)
-                {
-                    if (path[i] == visited[j])
-                    {
-                        furthestPath = i;
-                        furthestVisited = j;
-                        found = true;
-                    }
-                }
-                if (found)
-                    break;
-            }
+                const auto it = std::find(visited.rbegin(), visited.rend(), pathValue);
+                if (it == visited.rend())
+                    return false;
+                furthestVisited = it.base() - 1;
+                return true;
+            });
 
             // If no intersection found just return current path.
-            if (furthestPath == -1 || furthestVisited == -1)
-                return npath;
+            if (it == path.rend())
+                return path;
+            const auto furthestPath = it.base() - 1;
 
             // Concatenate paths.
 
-            // Adjust beginning of the buffer to include the visited.
-            const int req = nvisited - furthestVisited;
-            const int orig = rcMin(furthestPath+1, npath);
-            int size = rcMax(0, npath-orig);
-            if (req+size > maxPath)
-                size = maxPath-req;
-            if (size)
-                memmove(path+req, path+orig, std::size_t(size) * sizeof(dtPolyRef));
+            // visited: A x B
+            //            ^ furthestVisited
+            //    path: C x D
+            //            ^ furthestPath
+            //  result: x B D
 
-            // Store visited
-            for (int i = 0; i < req; ++i)
-                path[i] = visited[(nvisited-1)-i];
+            std::vector<dtPolyRef> result;
+            result.reserve(std::size_t(visited.end() - furthestVisited) + std::size_t(path.end() - furthestPath) - 1);
+            std::copy(furthestVisited, visited.end(), std::back_inserter(result));
+            std::copy(furthestPath + 1, path.end(), std::back_inserter(result));
 
-            return req+size;
+            return result;
         }
 
         // This function checks if the path has a small U-turn, that is,
@@ -1233,20 +1270,20 @@ namespace MWPhysics
         //  +-S-+-T-+
         //  |:::|   | <-- the step can end up in here, resulting U-turn path.
         //  +---+---+
-        int fixupShortcuts(dtPolyRef* path, int npath, const dtNavMeshQuery& navQuery)
+        std::vector<dtPolyRef> fixupShortcuts(const std::vector<dtPolyRef>& path, const dtNavMeshQuery& navQuery)
         {
-            if (npath < 3)
-                return npath;
+            if (path.size() < 3)
+                return path;
 
             // Get connected polygons
-            static const int maxNeis = 16;
-            dtPolyRef neis[maxNeis];
-            int nneis = 0;
-
             const dtMeshTile* tile = 0;
             const dtPoly* poly = 0;
             if (dtStatusFailed(navQuery.getAttachedNavMesh()->getTileAndPolyByRef(path[0], &tile, &poly)))
-                return npath;
+                return path;
+
+            const std::size_t maxNeis = 16;
+            std::array<dtPolyRef, maxNeis> neis;
+            std::size_t nneis = 0;
 
             for (unsigned int k = poly->firstLink; k != DT_NULL_LINK; k = tile->links[k].next)
             {
@@ -1260,11 +1297,11 @@ namespace MWPhysics
 
             // If any of the neighbour polygons is within the next few polygons
             // in the path, short cut to that polygon directly.
-            static const int maxLookAhead = 6;
-            int cut = 0;
-            for (int i = dtMin(maxLookAhead, npath) - 1; i > 1 && cut == 0; i--)
+            const std::size_t maxLookAhead = 6;
+            std::size_t cut = 0;
+            for (std::size_t i = std::min(maxLookAhead, path.size()) - 1; i > 1 && cut == 0; i--)
             {
-                for (int j = 0; j < nneis; j++)
+                for (std::size_t j = 0; j < nneis; j++)
                 {
                     if (path[i] == neis[j])
                     {
@@ -1273,57 +1310,60 @@ namespace MWPhysics
                     }
                 }
             }
-            if (cut > 1)
-            {
-                int offset = cut-1;
-                npath -= offset;
-                for (int i = 1; i < npath; i++)
-                    path[i] = path[i+offset];
-            }
+            if (cut <= 1)
+                return path;
 
-            return npath;
+            std::vector<dtPolyRef> result;
+            const auto offset = cut - 1;
+            result.reserve(1 + path.size() - offset);
+            result.push_back(path.front());
+            std::copy(path.begin() + std::ptrdiff_t(offset), path.end(), std::back_inserter(result));
+            return result;
         }
 
-        bool getSteerTarget(const dtNavMeshQuery& navQuery, const float* startPos, const float* endPos,
-            const float minTargetDist, const dtPolyRef* path, const int pathSize,
-            float* steerPos, unsigned char& steerPosFlag, dtPolyRef& steerPosRef)
+        struct SteerTarget
+        {
+            osg::Vec3f steerPos;
+            unsigned char steerPosFlag;
+            dtPolyRef steerPosRef;
+        };
+
+        boost::optional<SteerTarget> getSteerTarget(const dtNavMeshQuery& navQuery, const osg::Vec3f& startPos,
+            const osg::Vec3f& endPos, const float minTargetDist, const std::vector<dtPolyRef>& path)
         {
             // Find steer target.
-            static const int MAX_STEER_POINTS = 3;
-            float steerPath[MAX_STEER_POINTS*3];
-            unsigned char steerPathFlags[MAX_STEER_POINTS];
-            dtPolyRef steerPathPolys[MAX_STEER_POINTS];
+            SteerTarget result;
+            const int MAX_STEER_POINTS = 3;
+            std::array<float, MAX_STEER_POINTS * 3> steerPath;
+            std::array<unsigned char, MAX_STEER_POINTS> steerPathFlags;
+            std::array<dtPolyRef, MAX_STEER_POINTS> steerPathPolys;
             int nsteerPath = 0;
-            navQuery.findStraightPath(startPos, endPos, path, pathSize, steerPath, steerPathFlags,
-                                      steerPathPolys, &nsteerPath, MAX_STEER_POINTS);
+            navQuery.findStraightPath(startPos.ptr(), endPos.ptr(), path.data(), int(path.size()), steerPath.data(),
+                                      steerPathFlags.data(), steerPathPolys.data(), &nsteerPath, MAX_STEER_POINTS);
+            assert(nsteerPath >= 0);
             if (!nsteerPath)
-                return false;
+                return boost::none;
 
             // Find vertex far enough to steer to.
-            int ns = 0;
-            while (ns < nsteerPath)
+            std::size_t ns = 0;
+            while (ns < std::size_t(nsteerPath))
             {
                 // Stop at Off-Mesh link or when point is further than slop away.
                 if ((steerPathFlags[ns] & DT_STRAIGHTPATH_OFFMESH_CONNECTION) ||
-                    !inRange(&steerPath[ns*3], startPos, minTargetDist, 1000.0f))
+                        !inRange(makeOsgVec3f(&steerPath[ns * 3]), startPos, minTargetDist, 1000.0f))
                     break;
                 ns++;
             }
             // Failed to find good point to steer to.
-            if (ns >= nsteerPath)
-                return false;
+            if (ns >= std::size_t(nsteerPath))
+                return boost::none;
 
-            dtVcopy(steerPos, &steerPath[ns*3]);
-            steerPos[1] = startPos[1];
-            steerPosFlag = steerPathFlags[ns];
-            steerPosRef = steerPathPolys[ns];
+            dtVcopy(result.steerPos.ptr(), &steerPath[ns * 3]);
+            result.steerPos.y() = startPos[1];
+            result.steerPosFlag = steerPathFlags[ns];
+            result.steerPosRef = steerPathPolys[ns];
 
-            return true;
-        }
-
-        osg::Vec3f makeOsgVec3f(const float* values)
-        {
-            return osg::Vec3f(values[0], values[1], values[2]);
+            return result;
         }
 
         std::vector<osg::Vec3f> makeSmoothPath(const dtNavMesh& navMesh, const dtNavMeshQuery& navMeshQuery,
@@ -1331,113 +1371,109 @@ namespace MWPhysics
             std::vector<dtPolyRef> polygonPath)
         {
             // Iterate over the path to find smooth path on the detail mesh surface.
-            auto polys = polygonPath.data();
-            const auto maxPolygons = int(polygonPath.size());
-            auto npolys = int(polygonPath.size());
-            const auto spos = start.ptr();
-            const auto epos = end.ptr();
+            osg::Vec3f iterPos;
+            navMeshQuery.closestPointOnPoly(polygonPath.front(), start.ptr(), iterPos.ptr(), 0);
 
-            float iterPos[3], targetPos[3];
-            navMeshQuery.closestPointOnPoly(polys[0], spos, iterPos, 0);
-            navMeshQuery.closestPointOnPoly(polys[npolys-1], epos, targetPos, 0);
+            osg::Vec3f targetPos;
+            navMeshQuery.closestPointOnPoly(polygonPath.back(), end.ptr(), targetPos.ptr(), 0);
 
-            static const float STEP_SIZE = 0.5f;
-            static const float SLOP = 0.01f;
+            const float STEP_SIZE = 0.5f;
+            const float SLOP = 0.01f;
 
-            std::vector<osg::Vec3f> smoothPath;
-
-            smoothPath.push_back(makeOsgVec3f(iterPos));
+            std::vector<osg::Vec3f> smoothPath({iterPos});
 
             // Move towards target a small advancement at a time until target reached or
             // when ran out of memory to store the path.
-            while (npolys)
+            while (!polygonPath.empty())
             {
                 // Find location to steer towards.
-                float steerPos[3];
-                unsigned char steerPosFlag;
-                dtPolyRef steerPosRef;
+                const auto steerTarget = getSteerTarget(navMeshQuery, iterPos, targetPos, SLOP, polygonPath);
 
-                if (!getSteerTarget(navMeshQuery, iterPos, targetPos, SLOP, polys, npolys, steerPos,
-                                    steerPosFlag, steerPosRef))
+                if (!steerTarget)
                     break;
 
-                bool endOfPath = (steerPosFlag & DT_STRAIGHTPATH_END) ? true : false;
-                bool offMeshConnection = (steerPosFlag & DT_STRAIGHTPATH_OFFMESH_CONNECTION) ? true : false;
+                const bool endOfPath = bool(steerTarget->steerPosFlag & DT_STRAIGHTPATH_END);
+                const bool offMeshConnection = bool(steerTarget->steerPosFlag & DT_STRAIGHTPATH_OFFMESH_CONNECTION);
 
                 // Find movement delta.
-                float delta[3], len;
-                dtVsub(delta, steerPos, iterPos);
-                len = dtMathSqrtf(dtVdot(delta, delta));
+                const osg::Vec3f delta = steerTarget->steerPos - iterPos;
+                float len = delta.length();
                 // If the steer target is end of path or off-mesh link, do not move past the location.
                 if ((endOfPath || offMeshConnection) && len < STEP_SIZE)
                     len = 1;
                 else
                     len = STEP_SIZE / len;
-                float moveTgt[3];
-                dtVmad(moveTgt, iterPos, delta, len);
+
+                const osg::Vec3f moveTgt = iterPos + delta * len;
 
                 // Move
-                float result[3];
-                dtPolyRef visited[16];
+                osg::Vec3f result;
+                std::vector<dtPolyRef> visited(16);
                 int nvisited = 0;
-                navMeshQuery.moveAlongSurface(polys[0], iterPos, moveTgt, &filter, result, visited, &nvisited, 16);
+                OPENMW_CHECK_DT_STATUS(navMeshQuery.moveAlongSurface(polygonPath.front(), iterPos.ptr(), moveTgt.ptr(),
+                        &filter, result.ptr(), visited.data(), &nvisited, int(visited.size())));
 
-                npolys = fixupCorridor(polys, npolys, maxPolygons, visited, nvisited);
-                npolys = fixupShortcuts(polys, npolys, navMeshQuery);
+                assert(nvisited >= 0);
+                assert(nvisited <= int(visited.size()));
+                visited.resize(std::size_t(nvisited));
+
+                polygonPath = fixupCorridor(polygonPath, visited);
+                polygonPath = fixupShortcuts(polygonPath, navMeshQuery);
 
                 float h = 0;
-                navMeshQuery.getPolyHeight(polys[0], result, &h);
-                result[1] = h;
-                dtVcopy(iterPos, result);
+                OPENMW_CHECK_DT_STATUS(navMeshQuery.getPolyHeight(polygonPath.front(), result.ptr(), &h));
+                result.y() = h;
+                iterPos = result;
 
                 // Handle end of path and off-mesh links when close enough.
-                if (endOfPath && inRange(iterPos, steerPos, SLOP, 1.0f))
+                if (endOfPath && inRange(iterPos, steerTarget->steerPos, SLOP, 1.0f))
                 {
                     // Reached end of path.
-                    dtVcopy(iterPos, targetPos);
-                    smoothPath.push_back(makeOsgVec3f(iterPos));
+                    iterPos = targetPos;
+                    smoothPath.push_back(iterPos);
                     break;
                 }
-                else if (offMeshConnection && inRange(iterPos, steerPos, SLOP, 1.0f))
+                else if (offMeshConnection && inRange(iterPos, steerTarget->steerPos, SLOP, 1.0f))
                 {
-                    // Reached off-mesh connection.
-                    float startPos[3], endPos[3];
-
                     // Advance the path up to and over the off-mesh connection.
-                    dtPolyRef prevRef = 0, polyRef = polys[0];
-                    int npos = 0;
-                    while (npos < npolys && polyRef != steerPosRef)
+                    dtPolyRef prevRef = 0;
+                    dtPolyRef polyRef = polygonPath.front();
+                    std::size_t npos = 0;
+                    while (npos < polygonPath.size() && polyRef != steerTarget->steerPosRef)
                     {
                         prevRef = polyRef;
-                        polyRef = polys[npos];
-                        npos++;
+                        polyRef = polygonPath[npos];
+                        ++npos;
                     }
-                    for (int i = npos; i < npolys; ++i)
-                        polys[i-npos] = polys[i];
-                    npolys -= npos;
+                    std::copy(polygonPath.begin() + std::ptrdiff_t(npos), polygonPath.end(), polygonPath.begin());
+                    polygonPath.resize(polygonPath.size() - npos);
+
+                    // Reached off-mesh connection.
+                    osg::Vec3f startPos;
+                    osg::Vec3f endPos;
 
                     // Handle the connection.
-                    const auto status = navMesh.getOffMeshConnectionPolyEndPoints(prevRef, polyRef, startPos, endPos);
-                    if (dtStatusSucceed(status))
+                    if (dtStatusSucceed(navMesh.getOffMeshConnectionPolyEndPoints(prevRef, polyRef,
+                            startPos.ptr(), endPos.ptr())))
                     {
-                        smoothPath.push_back(makeOsgVec3f(startPos));
+                        smoothPath.push_back(startPos);
 
                         // Hack to make the dotted path not visible during off-mesh connection.
                         if (smoothPath.size() & 1)
                         {
-                            smoothPath.push_back(makeOsgVec3f(startPos));
+                            smoothPath.push_back(startPos);
                         }
 
                         // Move position at the other side of the off-mesh link.
-                        dtVcopy(iterPos, endPos);
+                        iterPos = endPos;
                         float eh = 0.0f;
-                        navMeshQuery.getPolyHeight(polys[0], iterPos, &eh);
-                        iterPos[1] = eh;
+                        OPENMW_CHECK_DT_STATUS(navMeshQuery.getPolyHeight(polygonPath.front(), iterPos.ptr(), &eh));
+                        iterPos.y() = eh;
                     }
                 }
 
                 // Store results.
-                smoothPath.push_back(makeOsgVec3f(iterPos));
+                smoothPath.push_back(iterPos);
             }
 
             return smoothPath;
@@ -1448,8 +1484,7 @@ namespace MWPhysics
                                                std::size_t maxPathLength = 1024, int maxNodes = 2048)
         {
             dtNavMeshQuery navMeshQuery;
-            if (!dtStatusSucceed(navMeshQuery.init(&navMesh, maxNodes)))
-                throw NavigatorException("dtNavMeshQuery::init failed");
+            OPENMW_CHECK_DT_STATUS(navMeshQuery.init(&navMesh, maxNodes));
 
             // Detour uses second coordinate as height
             std::swap(start.y(), start.z());
@@ -1459,28 +1494,28 @@ namespace MWPhysics
             dtQueryFilter queryFilter;
 
             dtPolyRef startRef;
-            float startPolygonPosition[3];
-            if (!dtStatusSucceed(navMeshQuery.findNearestPoly(start.ptr(), halfExtents.ptr(), &queryFilter, &startRef,
-                                                              startPolygonPosition)))
-                throw NavigatorException("dtNavMeshQuery::findNearestPoly failed for start");
+            osg::Vec3f startPolygonPosition;
+            OPENMW_CHECK_DT_STATUS(navMeshQuery.findNearestPoly(start.ptr(), halfExtents.ptr(), &queryFilter, &startRef,
+                                                                startPolygonPosition.ptr()));
 
             if (startRef == 0)
-                throw NavigatorException("start polygon is not found");
+                throw NavigatorException("start polygon is not found at " __FILE__ ":" + std::to_string(__LINE__));
 
             dtPolyRef endRef;
-            float endPolygonPosition[3];
-            if (!dtStatusSucceed(navMeshQuery.findNearestPoly(end.ptr(), halfExtents.ptr(), &queryFilter, &endRef,
-                                                              endPolygonPosition)))
-                throw NavigatorException("dtNavMeshQuery::findNearestPoly failed for end");
+            osg::Vec3f endPolygonPosition;
+            OPENMW_CHECK_DT_STATUS(navMeshQuery.findNearestPoly(end.ptr(), halfExtents.ptr(), &queryFilter, &endRef,
+                                                                endPolygonPosition.ptr()));
 
             if (endRef == 0)
-                throw NavigatorException("end polygon is not found");
+                throw NavigatorException("end polygon is not found at " __FILE__ ":" + std::to_string(__LINE__));
 
             std::vector<dtPolyRef> polygonPath(maxPathLength);
             int pathLen;
-            if (!dtStatusSucceed(navMeshQuery.findPath(startRef, endRef, start.ptr(), end.ptr(), &queryFilter,
-                                                       polygonPath.data(), &pathLen, int(polygonPath.size()))))
-                throw NavigatorException("dtNavMeshQuery::findPath failed");
+            OPENMW_CHECK_DT_STATUS(navMeshQuery.findPath(startRef, endRef, start.ptr(), end.ptr(), &queryFilter,
+                                                         polygonPath.data(), &pathLen, int(polygonPath.size())));
+
+            assert(pathLen >= 0);
+
             polygonPath.resize(std::size_t(pathLen));
 
             if (polygonPath.empty())
@@ -1555,6 +1590,9 @@ namespace MWPhysics
     {
         return mImpl->findPath(actor, start, end);
     }
+
+#undef OPENMW_CHECK_DT_RESULT
+#undef OPENMW_CHECK_DT_STATUS
 
     // ---------------------------------------------------------------
 
