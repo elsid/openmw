@@ -689,9 +689,25 @@ namespace MWPhysics
 
     // ---------------------------------------------------------------
 
+    namespace DetourTraits
+    {
+        static const float cellHeight = 0.2f;
+        static const float cellSize = 0.2f;
+        static const float detailSampleDist = 6.0f;
+        static const float detailSampleMaxError = 1.0f;
+        static const float maxSimplificationError = 1.3f;
+        static const int maxEdgeLen = 12;
+        static const int regionMergeSize = 20;
+        static const int regionMinSize = 8;
+        static const int maxVertsPerPoly = 6;
+
+        // Scale all coordinates to change order of values to make rcCreateHeightfield work
+        static const float invertedRecastScaleFactor = 64.0f;
+        static const float recastScaleFactor = 1.0f / invertedRecastScaleFactor;
+    }
+
     namespace
     {
-
 #define OPENMW_DT_STATUS(status) {status, #status}
 
         static const std::vector<std::pair<dtStatus, const char*>> dtStatuses {
@@ -745,10 +761,6 @@ namespace MWPhysics
 
 #define OPENMW_CHECK_DT_STATUS(call) do { checkDtStatus((call), #call, __LINE__); } while (false)
 #define OPENMW_CHECK_DT_RESULT(call) do { checkDtResult((call), #call, __LINE__); } while (false)
-
-    // Scale all coordinates to change order of values to make rcCreateHeightfield work
-    static const float invertedRecastScaleFactor = 64.0f;
-    static const float recastScaleFactor = 1.0f / invertedRecastScaleFactor;
 
     class RecastMesh
     {
@@ -816,7 +828,7 @@ namespace MWPhysics
             auto callback = makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
             {
                 for (std::size_t i = 3; i > 0; --i)
-                    addVertex(transform(triangle[i - 1]) * recastScaleFactor);
+                    addVertex(transform(triangle[i - 1]) * DetourTraits::recastScaleFactor);
                 ++mTrianglesCount;
             });
             return addShape(shape, callback);
@@ -827,7 +839,7 @@ namespace MWPhysics
             auto callback = makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
             {
                 for (std::size_t i = 0; i < 3; ++i)
-                    addVertex(transform(triangle[i]) * recastScaleFactor);
+                    addVertex(transform(triangle[i]) * DetourTraits::recastScaleFactor);
                 ++mTrianglesCount;
             });
             return addShape(shape, callback);
@@ -1008,6 +1020,15 @@ namespace MWPhysics
         float mRadius;
     };
 
+    AgentParams makeAgentParams(const Actor& actor)
+    {
+        AgentParams agentParams;
+        agentParams.mHeight = 2.0f * actor.getHalfExtents().z() * DetourTraits::recastScaleFactor;
+        agentParams.mMaxClimb = sStepSizeUp * DetourTraits::recastScaleFactor;
+        agentParams.mRadius = actor.getHalfExtents().x() * DetourTraits::recastScaleFactor;
+        return agentParams;
+    }
+
     std::tuple<float, float, float> makeTuple(const AgentParams& value)
     {
         return std::make_tuple(value.mHeight, value.mMaxClimb, value.mRadius);
@@ -1025,29 +1046,23 @@ namespace MWPhysics
 
     NavMeshPtr makeNavMesh(const AgentParams& agentParams, const RecastMesh& recastMesh)
     {
-        const auto maxEdgeLen = 12;
-        const auto regionMinSize = 8;
-        const auto regionMergeSize = 20;
-        const auto detailSampleDist = 6.0f;
-        const auto detailSampleMaxError = 1.0f;
-
         rcContext context;
         rcConfig config;
 
         config.tileSize = 0;
-        config.cs = 0.2f;
-        config.ch = 0.2f;
+        config.cs = DetourTraits::cellSize;
+        config.ch = DetourTraits::cellHeight;
         config.walkableSlopeAngle = sMaxSlope;
         config.walkableHeight = int(std::ceil(agentParams.mHeight / config.ch));
         config.walkableClimb = int(std::floor(agentParams.mMaxClimb / config.ch));
         config.walkableRadius = int(std::ceil(agentParams.mRadius / config.cs));
-        config.maxEdgeLen = int(std::round(maxEdgeLen / config.cs));
-        config.maxSimplificationError = 1.3f;
-        config.minRegionArea = regionMinSize * regionMinSize;
-        config.mergeRegionArea = regionMergeSize * regionMergeSize;
-        config.maxVertsPerPoly = 6;
-        config.detailSampleDist = detailSampleDist < 0.9f ? 0 : config.cs * detailSampleDist;
-        config.detailSampleMaxError = config.cs * detailSampleMaxError;
+        config.maxEdgeLen = int(std::round(DetourTraits::maxEdgeLen / config.cs));
+        config.maxSimplificationError = DetourTraits::maxSimplificationError;
+        config.minRegionArea = DetourTraits::regionMinSize * DetourTraits::regionMinSize;
+        config.mergeRegionArea = DetourTraits::regionMergeSize * DetourTraits::regionMergeSize;
+        config.maxVertsPerPoly = DetourTraits::maxVertsPerPoly;
+        config.detailSampleDist = DetourTraits::detailSampleDist < 0.9f ? 0 : config.cs * DetourTraits::detailSampleDist;
+        config.detailSampleMaxError = config.cs * DetourTraits::detailSampleMaxError;
 
         rcCalcBounds(recastMesh.getVertices().data(), int(recastMesh.getVerticesCount()), config.bmin, config.bmax);
 
@@ -1564,15 +1579,11 @@ namespace MWPhysics
             std::cout << "NavigatorImpl::findPath actor=" << actorPtr.getBase()
                       << " start=" << start << " end=" << end << std::endl;
             const auto& actor = *mActors.at(actorPtr);
-            AgentParams agentParams;
-            agentParams.mHeight = 2.0f * actor.getHalfExtents().z() * recastScaleFactor;
-            agentParams.mMaxClimb = sStepSizeUp * recastScaleFactor;
-            agentParams.mRadius = actor.getHalfExtents().x() * recastScaleFactor;
-            const auto navMesh = mNavMeshManager.getNavMesh(agentParams);
-            auto result = findSmoothPath(*navMesh, actor.getHalfExtents(), start * recastScaleFactor,
-                                         end * recastScaleFactor);
+            const auto navMesh = mNavMeshManager.getNavMesh(makeAgentParams(actor));
+            auto result = findSmoothPath(*navMesh, actor.getHalfExtents(),
+                start * DetourTraits::recastScaleFactor, end * DetourTraits::recastScaleFactor);
             for (auto& v : result)
-                v *= invertedRecastScaleFactor;
+                v *= DetourTraits::invertedRecastScaleFactor;
             return result;
         }
 
