@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include <stdexcept>
-#include <unordered_set>
+#include <unordered_map>
 #include <fstream>
 #include <array>
 
@@ -671,7 +671,7 @@ namespace MWPhysics
             return addObject(shape, callback);
         }
 
-        RecastMesh create()
+        RecastMesh create() const
         {
             return RecastMesh(mIndices, mVertices);
         }
@@ -701,44 +701,32 @@ namespace MWPhysics
     class RecastMeshManager
     {
     public:
-        bool addObject(HeightField* object)
+        bool addObject(std::size_t id, const btHeightfieldTerrainShape& shape, const btTransform& transform)
         {
-            if (!mHeightFields.insert(object).second)
+            if (!mObjects.insert(std::make_pair(id, Object {&shape, transform})).second)
                 return false;
-            mMeshBuilder.addObject(*object->getShape(), object->getCollisionObject()->getWorldTransform());
+            mMeshBuilder.addObject(shape, transform);
             return true;
         }
 
-        bool removeObject(HeightField* object)
+        bool addObject(std::size_t id, const btConcaveShape& shape, const btTransform& transform)
         {
-            if (!mHeightFields.erase(object))
+            if (const auto concaveShape = dynamic_cast<const btConcaveShape*>(&shape))
+            {
+                if (!mObjects.insert(std::make_pair(id, Object {&shape, transform})).second)
+                    return false;
+                mMeshBuilder.addObject(*concaveShape, transform);
+                return true;
+            }
+            return false;
+        }
+
+        bool removeObject(std::size_t id)
+        {
+            if (!mObjects.erase(id))
                 return false;
             rebuild();
             return true;
-        }
-
-        bool addObject(Object* object)
-        {
-            if (const auto concaveShape = dynamic_cast<btConcaveShape*>(object->getShapeInstance()->mCollisionShape))
-            {
-                if (!mObjects.insert(object).second)
-                    return false;
-                mMeshBuilder.addObject(*concaveShape, object->getCollisionObject()->getWorldTransform());
-                return true;
-            }
-            return false;
-        }
-
-        bool removeObject(Object* object)
-        {
-            if (const auto concaveShape = dynamic_cast<btConcaveShape*>(object->getShapeInstance()->mCollisionShape))
-            {
-                if (!mObjects.erase(object))
-                    return false;
-                rebuild();
-                return true;
-            }
-            return false;
         }
 
         RecastMesh getMesh()
@@ -747,18 +735,23 @@ namespace MWPhysics
         }
 
     private:
+        struct Object
+        {
+            const btCollisionShape* mShape;
+            btTransform mTransform;
+        };
+
         RecastMeshBuilder mMeshBuilder;
-        std::unordered_set<HeightField*> mHeightFields;
-        std::unordered_set<Object*> mObjects;
+        std::unordered_map<std::size_t, Object> mObjects;
 
         void rebuild()
         {
             mMeshBuilder = RecastMeshBuilder();
-            for (auto v : mHeightFields)
-                mMeshBuilder.addObject(*v->getShape(), v->getCollisionObject()->getWorldTransform());
-            for (auto v : mObjects)
-                if (const auto concaveShape = dynamic_cast<btConcaveShape*>(v->getShapeInstance()->mCollisionShape))
-                    mMeshBuilder.addObject(*concaveShape, v->getCollisionObject()->getWorldTransform());
+            for (const auto& v : mObjects)
+                if (const auto heightField = dynamic_cast<const btHeightfieldTerrainShape*>(v.second.mShape))
+                    mMeshBuilder.addObject(*heightField, v.second.mTransform);
+                else if (const auto concaveShape = dynamic_cast<const btConcaveShape*>(v.second.mShape))
+                    mMeshBuilder.addObject(*concaveShape, v.second.mTransform);
         }
     };
 
@@ -805,18 +798,17 @@ namespace MWPhysics
     {
     public:
         template <class T>
-        bool addObject(T* object)
+        bool addObject(std::size_t id, const T& shape, const btTransform& transform)
         {
-            if (!mImpl.addObject(object))
+            if (!mImpl.addObject(id, shape, transform))
                 return false;
             mCached.reset();
             return true;
         }
 
-        template <class T>
-        bool removeObject(T* object)
+        bool removeObject(std::size_t id)
         {
-            if (!mImpl.removeObject(object))
+            if (!mImpl.removeObject(id))
                 return false;
             mCached.reset();
             return true;
@@ -984,15 +976,14 @@ namespace MWPhysics
     {
     public:
         template <class T>
-        bool addObject(T* object)
+        bool addObject(std::size_t id, const T& shape, const btTransform& transform)
         {
-            return mRecastMeshManager.addObject(object);
+            return mRecastMeshManager.addObject(id, shape, transform);
         }
 
-        template <class T>
-        bool removeObject(T* object)
+        bool removeObject(std::size_t id)
         {
-            return mRecastMeshManager.removeObject(object);
+            return mRecastMeshManager.removeObject(id);
         }
 
         NavMeshPtr getNavMesh(const osg::Vec3f& agentHalfExtents)
@@ -1008,18 +999,17 @@ namespace MWPhysics
     {
     public:
         template <class T>
-        bool addObject(T* object)
+        bool addObject(std::size_t id, const T& shape, const btTransform& transform)
         {
-            if (!mImpl.addObject(object))
+            if (!mImpl.addObject(id, shape, transform))
                 return false;
             mCache.clear();
             return true;
         }
 
-        template <class T>
-        bool removeObject(T* object)
+        bool removeObject(std::size_t id)
         {
-            if (!mImpl.removeObject(object))
+            if (!mImpl.removeObject(id))
                 return false;
             mCache.clear();
             return true;
@@ -1369,17 +1359,16 @@ namespace MWPhysics
     {
     public:
         template <class T>
-        bool addObject(T* object)
+        bool addObject(std::size_t id, const T& shape, const btTransform& transform)
         {
-            std::cout << "NavigatorImpl::addObject object=" << object << std::endl;
-            return mNavMeshManager.addObject(object);
+            std::cout << "NavigatorImpl::addObject object=" << id << std::endl;
+            return mNavMeshManager.addObject(id, shape, transform);
         }
 
-        template <class T>
-        bool removeObject(T* object)
+        bool removeObject(std::size_t id)
         {
-            std::cout << "NavigatorImpl::removeObject object=" << object << std::endl;
-            return mNavMeshManager.removeObject(object);
+            std::cout << "NavigatorImpl::removeObject object=" << id << std::endl;
+            return mNavMeshManager.removeObject(id);
         }
 
         std::vector<osg::Vec3f> findPath(const osg::Vec3f& agentHalfExtents,
@@ -1887,7 +1876,8 @@ namespace MWPhysics
         mCollisionWorld->addCollisionObject(heightfield->getCollisionObject(), CollisionType_HeightMap,
             CollisionType_Actor|CollisionType_Projectile);
 
-        mNavigator->addObject(heightfield);
+        mNavigator->addObject(std::size_t(heightfield), *heightfield->getShape(),
+                              heightfield->getCollisionObject()->getWorldTransform());
     }
 
     void PhysicsSystem::removeHeightField (int x, int y)
@@ -1895,7 +1885,7 @@ namespace MWPhysics
         HeightFieldMap::iterator heightfield = mHeightFields.find(std::make_pair(x,y));
         if(heightfield != mHeightFields.end())
         {
-            mNavigator->removeObject(heightfield->second);
+            mNavigator->removeObject(std::size_t(heightfield->second));
             mCollisionWorld->removeCollisionObject(heightfield->second->getCollisionObject());
             delete heightfield->second;
             mHeightFields.erase(heightfield);
@@ -1917,7 +1907,8 @@ namespace MWPhysics
         mCollisionWorld->addCollisionObject(obj->getCollisionObject(), collisionType,
                                            CollisionType_Actor|CollisionType_HeightMap|CollisionType_Projectile);
 
-        mNavigator->addObject(obj);
+        if (const auto concaveShape = dynamic_cast<const btConcaveShape*>(obj->getShapeInstance()->mCollisionShape))
+            mNavigator->addObject(std::size_t(obj), *concaveShape, obj->getCollisionObject()->getWorldTransform());
     }
 
     void PhysicsSystem::remove(const MWWorld::Ptr &ptr)
@@ -1925,7 +1916,7 @@ namespace MWPhysics
         ObjectMap::iterator found = mObjects.find(ptr);
         if (found != mObjects.end())
         {
-            mNavigator->removeObject(found->second);
+            mNavigator->removeObject(std::size_t(found->second));
             mCollisionWorld->removeCollisionObject(found->second->getCollisionObject());
 
             if (mUnrefQueue.get())
