@@ -280,6 +280,12 @@ namespace MWWorld
             }
         }
 
+        (*iter)->forEachConst([&] (const MWWorld::ConstPtr& ptr) {
+            if (const auto actor = mPhysics->getActor(ptr))
+                navigator->removeAgent(actor->getHalfExtents());
+            return true;
+        });
+
         MWBase::Environment::get().getMechanicsManager()->drop (*iter);
 
         mRendering.removeCell(*iter);
@@ -349,6 +355,14 @@ namespace MWWorld
             }
             else
                 mPhysics->disableWater();
+
+            cell->forEachConst([&] (const MWWorld::ConstPtr& ptr) {
+                if (const auto actor = mPhysics->getActor(ptr))
+                    navigator->addAgent(actor->getHalfExtents());
+                return true;
+            });
+
+            navigator->update();
 
             if (!cell->isExterior() && !(cell->getCell()->mData.mFlags & ESM::Cell::QuasiEx))
                 mRendering.configureAmbient(cell->getCell());
@@ -669,6 +683,8 @@ namespace MWWorld
         const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
         if (const auto object = mPhysics->getObject(ptr))
             navigator->removeObject(std::size_t(object));
+        else if (const auto actor = mPhysics->getActor(ptr))
+            navigator->removeAgent(actor->getHalfExtents());
         mPhysics->remove(ptr);
         mRendering.removeObject (ptr);
         if (ptr.getClass().isActor())

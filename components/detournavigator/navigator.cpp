@@ -44,6 +44,11 @@ namespace DetourNavigator
         static const float recastScaleFactor = 1.0f / invertedRecastScaleFactor;
     }
 
+    static std::ostream& operator <<(std::ostream& stream, const osg::Vec3f& value)
+    {
+        return stream << '(' << value.x() << ", " << value.y() << ", " << value.z() << ')';
+    }
+
     namespace
     {
 #define OPENMW_DT_STATUS(status) {status, #status}
@@ -704,7 +709,7 @@ namespace DetourNavigator
         return mRecastMeshManager.removeObject(id);
     }
 
-    NavMeshPtr NavMeshManager::getNavMesh(const osg::Vec3f& agentHalfExtents)
+    NavMeshConstPtr NavMeshManager::getNavMesh(const osg::Vec3f& agentHalfExtents)
     {
         return makeNavMesh(agentHalfExtents, mRecastMeshManager.getMesh());
     }
@@ -713,21 +718,54 @@ namespace DetourNavigator
     {
         if (!mImpl.removeObject(id))
             return false;
-        mCache.clear();
+        for (auto& v : mCache)
+            v.second.mInvalid = true;
         return true;
     }
 
-    const dtNavMesh* NavMeshManagerCache::getNavMesh(const osg::Vec3f& agentHalfExtents)
+    void NavMeshManagerCache::reset(const osg::Vec3f& agentHalfExtents)
+    {
+        mCache.erase(agentHalfExtents);
+        std::cout << "cache reset for agent=" << agentHalfExtents << std::endl;
+    }
+
+    void NavMeshManagerCache::update(const osg::Vec3f& agentHalfExtents)
+    {
+        const auto it = mCache.find(agentHalfExtents);
+        if (it == mCache.end())
+        {
+            mCache.insert(std::make_pair(agentHalfExtents, CacheItem {mImpl.getNavMesh(agentHalfExtents), true}));
+            std::cout << "cache set for agent=" << agentHalfExtents << std::endl;
+        }
+        else if (it->second.mInvalid)
+        {
+            it->second = CacheItem {mImpl.getNavMesh(agentHalfExtents), true};
+            std::cout << "cache update for agent=" << agentHalfExtents << std::endl;
+        }
+    }
+
+    NavMeshConstPtr NavMeshManagerCache::getNavMesh(const osg::Vec3f& agentHalfExtents)
     {
         auto it = mCache.find(agentHalfExtents);
         if (it == mCache.end())
-            it = mCache.insert(std::make_pair(agentHalfExtents, mImpl.getNavMesh(agentHalfExtents))).first;
-        return it->second.get();
+            it = mCache.insert(std::make_pair(agentHalfExtents, CacheItem {mImpl.getNavMesh(agentHalfExtents), true})).first;
+        else
+            std::cout << "cache hit for agent=" << agentHalfExtents << std::endl;
+        return it->second.mValue;
     }
 
-    static std::ostream& operator <<(std::ostream& stream, const osg::Vec3f& value)
+    void Navigator::addAgent(const osg::Vec3f& agentHalfExtents)
     {
-        return stream << '(' << value.x() << ", " << value.y() << ", " << value.z() << ')';
+        ++mAgents[agentHalfExtents];
+    }
+
+    void Navigator::removeAgent(const osg::Vec3f& agentHalfExtents)
+    {
+        const auto it = mAgents.find(agentHalfExtents);
+        if (it == mAgents.end() || --it->second)
+            return;
+        mAgents.erase(it);
+        mNavMeshManager.reset(agentHalfExtents);
     }
 
     bool Navigator::removeObject(std::size_t id)
@@ -735,11 +773,17 @@ namespace DetourNavigator
         return mNavMeshManager.removeObject(id);
     }
 
+    void Navigator::update()
+    {
+        for (const auto& v : mAgents)
+            mNavMeshManager.update(v.first);
+    }
+
     std::vector<osg::Vec3f> Navigator::findPath(const osg::Vec3f& agentHalfExtents,
         const osg::Vec3f& start, const osg::Vec3f& end)
     {
         std::cout << "Navigator::findPath agentHalfExtents=" << agentHalfExtents
-                    << " start=" << start << " end=" << end << '\n';
+                  << " start=" << start << " end=" << end << '\n';
         const auto navMesh = mNavMeshManager.getNavMesh(agentHalfExtents);
         auto result = findSmoothPath(*navMesh, agentHalfExtents,
             start * DetourTraits::recastScaleFactor, end * DetourTraits::recastScaleFactor);

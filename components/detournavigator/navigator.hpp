@@ -148,7 +148,8 @@ namespace DetourNavigator
         boost::optional<RecastMesh> mCached;
     };
 
-    using NavMeshPtr = std::unique_ptr<dtNavMesh, decltype(&dtFreeNavMesh)>;
+    using NavMeshPtr = std::shared_ptr<dtNavMesh>;
+    using NavMeshConstPtr = std::shared_ptr<const dtNavMesh>;
 
     class NavMeshManager
     {
@@ -161,7 +162,7 @@ namespace DetourNavigator
 
         bool removeObject(std::size_t id);
 
-        NavMeshPtr getNavMesh(const osg::Vec3f& agentHalfExtents);
+        NavMeshConstPtr getNavMesh(const osg::Vec3f& agentHalfExtents);
 
     private:
         RecastMeshManagerCache mRecastMeshManager;
@@ -175,22 +176,37 @@ namespace DetourNavigator
         {
             if (!mImpl.addObject(id, shape, transform))
                 return false;
-            mCache.clear();
+            for (auto& v : mCache)
+                v.second.mInvalid = true;
             return true;
         }
 
         bool removeObject(std::size_t id);
 
-        const dtNavMesh* getNavMesh(const osg::Vec3f& agentHalfExtents);
+        void reset(const osg::Vec3f& agentHalfExtents);
+
+        void update(const osg::Vec3f& agentHalfExtents);
+
+        NavMeshConstPtr getNavMesh(const osg::Vec3f& agentHalfExtents);
 
     private:
+        struct CacheItem
+        {
+            NavMeshConstPtr mValue;
+            bool mInvalid;
+        };
+
         NavMeshManager mImpl;
-        std::map<osg::Vec3f, NavMeshPtr> mCache;
+        std::map<osg::Vec3f, CacheItem> mCache;
     };
 
     class Navigator
     {
     public:
+        void addAgent(const osg::Vec3f& agentHalfExtents);
+
+        void removeAgent(const osg::Vec3f& agentHalfExtents);
+
         template <class T>
         bool addObject(std::size_t id, const T& shape, const btTransform& transform)
         {
@@ -199,10 +215,13 @@ namespace DetourNavigator
 
         bool removeObject(std::size_t id);
 
+        void update();
+
         std::vector<osg::Vec3f> findPath(const osg::Vec3f& agentHalfExtents,
                                          const osg::Vec3f& start, const osg::Vec3f& end);
 
     private:
         NavMeshManagerCache mNavMeshManager;
+        std::map<osg::Vec3f, std::size_t> mAgents;
     };
 }
