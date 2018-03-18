@@ -28,8 +28,14 @@ namespace MWRender
     class LandManager;
 }
 
+namespace VFS
+{
+    class Manager;
+}
+
 namespace MWWorld
 {
+    class ConstPtr;
     class CellStore;
 
     class CellPreloader
@@ -108,6 +114,8 @@ namespace MWWorld
         osg::ref_ptr<SceneUtil::WorkItem> mTerrainPreloadItem;
         osg::ref_ptr<SceneUtil::WorkItem> mUpdateCacheItem;
     };
+
+    std::string getModelName(const MWWorld::ConstPtr& ptr, const VFS::Manager* vfs);
 
 }
 

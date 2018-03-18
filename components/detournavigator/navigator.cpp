@@ -209,6 +209,9 @@ namespace DetourNavigator
 
         NavMeshPtr makeNavMesh(const osg::Vec3f& agentHalfExtents, const RecastMesh& recastMesh)
         {
+            if (!recastMesh.getVerticesCount())
+                throw std::invalid_argument("recast mesh has 0 vertices");
+
             rcContext context;
             rcConfig config;
 

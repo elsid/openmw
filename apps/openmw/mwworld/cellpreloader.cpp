@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#include <BulletCollision/CollisionShapes/btHeightfieldTerrainShape.h>
+
 #include <components/resource/scenemanager.hpp>
 #include <components/resource/resourcesystem.hpp>
 #include <components/resource/bulletshapemanager.hpp>
@@ -12,12 +14,19 @@
 #include <components/terrain/world.hpp>
 #include <components/esmterrain/storage.hpp>
 #include <components/sceneutil/unrefqueue.hpp>
+#include <components/sceneutil/positionattitudetransform.hpp>
 #include <components/esm/loadcell.hpp>
+#include <components/detournavigator/navigator.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
 
 #include "../mwrender/landmanager.hpp"
+
+#include "../mwphysics/actor.hpp"
+#include "../mwphysics/heightfield.hpp"
+#include "../mwphysics/object.hpp"
+#include "../mwphysics/convert.hpp"
 
 #include "cellstore.hpp"
 #include "manualref.hpp"
@@ -48,7 +57,10 @@ namespace MWWorld
     {
     public:
         /// Constructor to be called from the main thread.
-        PreloadItem(MWWorld::CellStore* cell, Resource::SceneManager* sceneManager, Resource::BulletShapeManager* bulletShapeManager, Resource::KeyframeManager* keyframeManager, Terrain::World* terrain, MWRender::LandManager* landManager, bool preloadInstances)
+        PreloadItem(MWWorld::CellStore* cell, Resource::SceneManager* sceneManager,
+                Resource::BulletShapeManager* bulletShapeManager, Resource::KeyframeManager* keyframeManager,
+                Terrain::World* terrain, MWRender::LandManager* landManager, bool preloadInstances,
+                const VFS::Manager* vfs)
             : mIsExterior(cell->getCell()->isExterior())
             , mX(cell->getCell()->getGridX())
             , mY(cell->getCell()->getGridY())
@@ -58,6 +70,7 @@ namespace MWWorld
             , mTerrain(terrain)
             , mLandManager(landManager)
             , mPreloadInstances(preloadInstances)
+            , mCellId(std::size_t(cell->getCell()))
             , mAbort(false)
         {
             mTerrainView = mTerrain->createView();
@@ -66,6 +79,15 @@ namespace MWWorld
             if (cell->getState() == MWWorld::CellStore::State_Loaded)
             {
                 cell->forEach(visitor);
+                cell->forEachConst([&] (const MWWorld::ConstPtr& ptr) {
+                    const auto id = std::size_t(ptr.getBase());
+                    btTransform transform;
+//                    transform.setRotation(MWPhysics::toBullet(ptr.getRefData().getBaseNode()->getAttitude()));
+                    transform.setOrigin(MWPhysics::toBullet(ptr.getRefData().getPosition().asVec3()));
+                    mNavigatorObjects.push_back(NavigatorObject {id, getModelName(ptr, vfs), transform,
+                                                                 ptr.getClass().isActor()});
+                    return true;
+                });
             }
             else
             {
@@ -90,15 +112,69 @@ namespace MWWorld
         /// Preload work to be called from the worker thread.
         virtual void doWork()
         {
+            const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
+
             if (mIsExterior)
             {
                 try
                 {
                     mTerrain->cacheCell(mTerrainView.get(), mX, mY);
-                    mPreloadedObjects.push_back(mLandManager->getLand(mX, mY));
+                    const auto land = mLandManager->getLand(mX, mY);
+                    mPreloadedObjects.push_back(land);
+
+                    const auto verts = ESM::Land::LAND_SIZE;
+                    const auto worldSize = ESM::Land::REAL_SIZE;
+                    const auto triSize = worldSize / (verts - 1);
+
+                    if (const auto data = land ? land->getData(ESM::Land::DATA_VHGT) : 0)
+                    {
+                        btHeightfieldTerrainShape shape(
+                            verts, verts, data->mHeights, 1,
+                            data->mMinHeight, data->mMaxHeight, 2,
+                            PHY_FLOAT, false
+                        );
+
+                        shape.setLocalScaling(btVector3(triSize, triSize, 1));
+
+                        const btTransform transform(
+                            btQuaternion::getIdentity(),
+                            btVector3(
+                                (mX + 0.5f) * triSize * (verts - 1),
+                                (mY + 0.5f) * triSize * (verts - 1),
+                                (data->mMaxHeight + data->mMinHeight) * 0.5f
+                            )
+                        );
+
+                        navigator->addObject(mCellId, shape, transform);
+                    }
+                    else
+                    {
+                        static std::vector<float> defaultHeight;
+                        defaultHeight.resize(std::size_t(verts) * std::size_t(verts), ESM::Land::DEFAULT_HEIGHT);
+
+                        btHeightfieldTerrainShape shape(
+                            verts, verts, defaultHeight.data(), 1,
+                            ESM::Land::DEFAULT_HEIGHT, ESM::Land::DEFAULT_HEIGHT, 2,
+                            PHY_FLOAT, false
+                        );
+
+                        shape.setLocalScaling(btVector3(triSize, triSize, 1));
+
+                        const btTransform transform(
+                            btQuaternion::getIdentity(),
+                            btVector3(
+                                (mX + 0.5f) * triSize * (verts - 1),
+                                (mY + 0.5f) * triSize * (verts - 1),
+                                ESM::Land::DEFAULT_HEIGHT
+                            )
+                        );
+
+                        navigator->addObject(mCellId, shape, transform);
+                    }
                 }
                 catch(std::exception& e)
                 {
+                    std::cout << e.what() << std::endl;
                 }
             }
 
@@ -145,10 +221,55 @@ namespace MWWorld
                     // error will be shown when visiting the cell
                 }
             }
+
+            for (const auto& v : mNavigatorObjects)
+            {
+                try
+                {
+                    const auto shapeInstance = mBulletShapeManager->getInstance(v.mModelName);
+
+                    if (!shapeInstance)
+                        continue;
+
+                    if (v.mIsActor)
+                    {
+                        navigator->addAgent(shapeInstance->mCollisionBoxHalfExtents);
+                        continue;
+                    }
+
+                    if (!shapeInstance->getCollisionShape())
+                        continue;
+
+//                    if (const auto concave = dynamic_cast<const btConcaveShape*>(shapeInstance->getCollisionShape()))
+//                        navigator->addObject(v.mId, *concave, v.mTransform);
+                }
+                catch (const std::exception& e)
+                {
+                    std::cout << e.what() << std::endl;
+                }
+            }
+
+            try
+            {
+                navigator->update();
+            }
+            catch (const std::exception& e)
+            {
+                std::cout << e.what() << std::endl;
+            }
         }
 
     private:
         typedef std::vector<std::string> MeshList;
+
+        struct NavigatorObject
+        {
+            std::size_t mId;
+            std::string mModelName;
+            btTransform mTransform;
+            bool mIsActor;
+        };
+
         bool mIsExterior;
         int mX;
         int mY;
@@ -159,6 +280,7 @@ namespace MWWorld
         Terrain::World* mTerrain;
         MWRender::LandManager* mLandManager;
         bool mPreloadInstances;
+        std::size_t mCellId;
 
         volatile bool mAbort;
 
@@ -166,6 +288,8 @@ namespace MWWorld
 
         // keep a ref to the loaded objects to make sure it stays loaded as long as this cell is in the preloaded state
         std::vector<osg::ref_ptr<const osg::Object> > mPreloadedObjects;
+
+        std::vector<NavigatorObject> mNavigatorObjects;
     };
 
     /// Worker thread item: update the resource system's cache, effectively deleting unused entries.
@@ -270,7 +394,9 @@ namespace MWWorld
                 return;
         }
 
-        osg::ref_ptr<PreloadItem> item (new PreloadItem(cell, mResourceSystem->getSceneManager(), mBulletShapeManager, mResourceSystem->getKeyframeManager(), mTerrain, mLandManager, mPreloadInstances));
+        osg::ref_ptr<PreloadItem> item (new PreloadItem(cell, mResourceSystem->getSceneManager(), mBulletShapeManager,
+                                                        mResourceSystem->getKeyframeManager(), mTerrain, mLandManager,
+                                                        mPreloadInstances, mResourceSystem->getVFS()));
         mWorkQueue->addWorkItem(item);
 
         mPreloadCells[cell] = PreloadEntry(timestamp, item);
@@ -425,6 +551,20 @@ namespace MWWorld
             mTerrainPreloadItem = new TerrainPreloadItem(mTerrainViews, mTerrain, positions);
             mWorkQueue->addWorkItem(mTerrainPreloadItem);
         }
+    }
+
+    std::string getModelName(const MWWorld::ConstPtr& ptr, const VFS::Manager* vfs)
+    {
+        const bool useAnim = ptr.getClass().useAnim();
+        std::string model = ptr.getClass().getModel(ptr);
+        if (useAnim)
+            model = Misc::ResourceHelpers::correctActorModelPath(model, vfs);
+
+        const std::string id = ptr.getCellRef().getRefId();
+        if (id == "prisonmarker" || id == "divinemarker" || id == "templemarker" || id == "northmarker")
+            model = ""; // marker objects that have a hardcoded function in the game logic, should be hidden from the player
+
+        return model;
     }
 
 }

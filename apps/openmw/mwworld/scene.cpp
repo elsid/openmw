@@ -67,14 +67,7 @@ namespace
             return;
         }
 
-        bool useAnim = ptr.getClass().useAnim();
-        std::string model = ptr.getClass().getModel(ptr);
-        if (useAnim)
-            model = Misc::ResourceHelpers::correctActorModelPath(model, rendering.getResourceSystem()->getVFS());
-
-        std::string id = ptr.getCellRef().getRefId();
-        if (id == "prisonmarker" || id == "divinemarker" || id == "templemarker" || id == "northmarker")
-            model = ""; // marker objects that have a hardcoded function in the game logic, should be hidden from the player
+        const auto model = getModelName(ptr, rendering.getResourceSystem()->getVFS());
 
         ptr.getClass().insertObjectRendering(ptr, model, rendering);
         setNodeRotation(ptr, rendering, false);
@@ -86,11 +79,12 @@ namespace
             if (const auto concaveShape = dynamic_cast<const btConcaveShape*>(object->getShapeInstance()->mCollisionShape))
             {
                 const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
-                navigator->addObject(std::size_t(object), *concaveShape, object->getCollisionObject()->getWorldTransform());
+                navigator->addObject(std::size_t(ptr.getBase()), *concaveShape,
+                                     object->getCollisionObject()->getWorldTransform());
             }
         }
 
-        if (useAnim)
+        if (ptr.getClass().useAnim())
             MWBase::Environment::get().getMechanicsManager()->add(ptr);
 
         if (ptr.getClass().isActor())
@@ -275,7 +269,7 @@ namespace MWWorld
                 const auto cellX = (*iter)->getCell()->getGridX();
                 const auto cellY = (*iter)->getCell()->getGridY();
                 if (const auto heightField = mPhysics->getHeightField(cellX, cellY))
-                    navigator->removeObject(std::size_t(heightField));
+                    navigator->removeObject(std::size_t((*iter)->getCell()));
                 mPhysics->removeHeightField(cellX, cellY);
             }
         }
@@ -329,7 +323,7 @@ namespace MWWorld
                 }
 
                 if (const auto heightField = mPhysics->getHeightField(cellX, cellY))
-                    navigator->addObject(std::size_t(heightField), *heightField->getShape(),
+                    navigator->addObject(std::size_t(cell->getCell()), *heightField->getShape(),
                             heightField->getCollisionObject()->getWorldTransform());
             }
 
