@@ -176,8 +176,7 @@ namespace DetourNavigator
         {
             if (!mImpl.addObject(id, shape, transform))
                 return false;
-            for (auto& v : mCache)
-                v.second.mInvalid = true;
+            ++mRevision;
             return true;
         }
 
@@ -193,9 +192,10 @@ namespace DetourNavigator
         struct CacheItem
         {
             NavMeshConstPtr mValue;
-            bool mInvalid;
+            std::size_t mRevision;
         };
 
+        std::size_t mRevision = 0;
         NavMeshManager mImpl;
         std::map<osg::Vec3f, CacheItem> mCache;
     };

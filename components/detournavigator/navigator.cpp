@@ -718,8 +718,7 @@ namespace DetourNavigator
     {
         if (!mImpl.removeObject(id))
             return false;
-        for (auto& v : mCache)
-            v.second.mInvalid = true;
+        ++mRevision;
         return true;
     }
 
@@ -734,12 +733,12 @@ namespace DetourNavigator
         const auto it = mCache.find(agentHalfExtents);
         if (it == mCache.end())
         {
-            mCache.insert(std::make_pair(agentHalfExtents, CacheItem {mImpl.getNavMesh(agentHalfExtents), true}));
+            mCache.insert(std::make_pair(agentHalfExtents, CacheItem {mImpl.getNavMesh(agentHalfExtents), mRevision}));
             std::cout << "cache set for agent=" << agentHalfExtents << std::endl;
         }
-        else if (it->second.mInvalid)
+        else if (it->second.mRevision < mRevision)
         {
-            it->second = CacheItem {mImpl.getNavMesh(agentHalfExtents), true};
+            it->second = CacheItem {mImpl.getNavMesh(agentHalfExtents), mRevision};
             std::cout << "cache update for agent=" << agentHalfExtents << std::endl;
         }
     }
