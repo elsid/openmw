@@ -680,7 +680,7 @@ namespace MWWorld
             /// Preload VFX associated with this effect list
             void preloadEffects(const ESM::EffectList* effectList) override;
 
-            MWPhysics::Navigator getNavigator() const override;
+            DetourNavigator::Navigator* getNavigator() const override;
     };
 }
 

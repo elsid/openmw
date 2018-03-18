@@ -151,6 +151,10 @@ add_component_dir (fallback
     fallback validate
     )
 
+add_component_dir(detournavigator
+    navigator
+    )
+
 set (ESM_UI ${CMAKE_SOURCE_DIR}/files/ui/contentselector.ui
     )
 
@@ -197,6 +201,12 @@ else()
     set(GL_LIB ${OPENGL_gl_LIBRARY})
 endif()
 
+find_package(Recast REQUIRED)
+find_package(Detour REQUIRED)
+
+include_directories(SYSTEM ${RECAST_INCLUDE_DIRS})
+include_directories(SYSTEM ${DETOUR_INCLUDE_DIRS})
+
 target_link_libraries(components
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
@@ -213,6 +223,8 @@ target_link_libraries(components
     ${OSGANIMATION_LIBRARIES}
     ${Bullet_LIBRARIES}
     ${SDL2_LIBRARIES}
+    ${RECAST_LIBRARIES}
+    ${DETOUR_LIBRARIES}
     # For MyGUI platform
     ${GL_LIB}
     ${MyGUI_LIBRARIES}

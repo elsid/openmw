@@ -34,6 +34,11 @@ namespace SceneUtil
     class UnrefQueue;
 }
 
+namespace DetourNavigator
+{
+    class Navigator;
+}
+
 class btCollisionWorld;
 class btBroadphaseInterface;
 class btDefaultCollisionConfiguration;
@@ -48,25 +53,6 @@ namespace MWPhysics
     class HeightField;
     class Object;
     class Actor;
-    class NavigatorImpl;
-
-    struct NavigatorException : std::runtime_error
-    {
-        NavigatorException(const std::string& message) : std::runtime_error(message) {}
-        NavigatorException(const char* message) : std::runtime_error(message) {}
-    };
-
-    class Navigator
-    {
-    public:
-        Navigator(NavigatorImpl& impl);
-
-        std::vector<osg::Vec3f> findPath(const osg::Vec3f& agentHalfExtents,
-                                         const osg::Vec3f& start, const osg::Vec3f& end) const;
-
-    private:
-        NavigatorImpl* mImpl;
-    };
 
     class PhysicsSystem
     {
@@ -189,7 +175,7 @@ namespace MWPhysics
 
             bool isOnSolidGround (const MWWorld::Ptr& actor) const;
 
-            Navigator getNavigator() const;
+            DetourNavigator::Navigator* getNavigator() const;
 
         private:
 
@@ -243,7 +229,7 @@ namespace MWPhysics
 
             float mPhysicsDt;
 
-            std::unique_ptr<NavigatorImpl> mNavigator;
+            std::unique_ptr<DetourNavigator::Navigator> mNavigator;
 
             PhysicsSystem (const PhysicsSystem&);
             PhysicsSystem& operator= (const PhysicsSystem&);

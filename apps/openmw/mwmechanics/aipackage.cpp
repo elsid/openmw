@@ -7,6 +7,8 @@
 #include <components/esm/loadland.hpp>
 #include <components/esm/loadmgef.hpp>
 
+#include <components/detournavigator/navigator.hpp>
+
 #include "../mwbase/world.hpp"
 #include "../mwbase/environment.hpp"
 
@@ -386,7 +388,7 @@ bool MWMechanics::AiPackage::buildOptimalPath(const MWWorld::Ptr& actor, const E
     {
         const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
         const auto halfExtents = MWBase::Environment::get().getWorld()->getHalfExtents(actor);
-        const auto path = navigator.findPath(halfExtents, startPosition.asVec3(), endPosition);
+        const auto path = navigator->findPath(halfExtents, startPosition.asVec3(), endPosition);
 
         if (path.empty())
             return false;
@@ -402,7 +404,7 @@ bool MWMechanics::AiPackage::buildOptimalPath(const MWWorld::Ptr& actor, const E
 
         return true;
     }
-    catch (const MWPhysics::NavigatorException& exception)
+    catch (const DetourNavigator::NavigatorException& exception)
     {
         std::cerr << exception.what() << '\n';
         return false;

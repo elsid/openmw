@@ -16,6 +16,8 @@
 
 #include <components/sceneutil/positionattitudetransform.hpp>
 
+#include <components/detournavigator/navigator.hpp>
+
 #include "../mwbase/environment.hpp"
 #include "../mwbase/soundmanager.hpp"
 #include "../mwbase/mechanicsmanager.hpp"
@@ -3485,7 +3487,7 @@ namespace MWWorld
         }
     }
 
-    MWPhysics::Navigator World::getNavigator() const
+    DetourNavigator::Navigator* World::getNavigator() const
     {
         return mPhysics->getNavigator();
     }

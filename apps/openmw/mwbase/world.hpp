@@ -54,7 +54,7 @@ namespace MWMechanics
     struct Movement;
 }
 
-namespace MWPhysics
+namespace DetourNavigator
 {
     class Navigator;
 }
@@ -580,7 +580,7 @@ namespace MWBase
             /// Preload VFX associated with this effect list
             virtual void preloadEffects(const ESM::EffectList* effectList) = 0;
 
-            virtual MWPhysics::Navigator getNavigator() const = 0;
+            virtual DetourNavigator::Navigator* getNavigator() const = 0;
     };
 }
 
