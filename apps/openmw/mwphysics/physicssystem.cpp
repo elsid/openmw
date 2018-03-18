@@ -595,10 +595,9 @@ namespace MWPhysics
     class RecastMesh
     {
     public:
-        RecastMesh(std::vector<int> indices, std::vector<float> vertices, std::size_t trianglesCount)
+        RecastMesh(std::vector<int> indices, std::vector<float> vertices)
             : mIndices(std::move(indices))
             , mVertices(std::move(vertices))
-            , mTrianglesCount(trianglesCount)
         {}
 
         const std::vector<int>& getIndices() const
@@ -613,18 +612,17 @@ namespace MWPhysics
 
         std::size_t getVerticesCount() const
         {
-            return std::size_t(mVertices.size() / 3);
+            return mIndices.size();
         }
 
         std::size_t getTrianglesCount() const
         {
-            return mTrianglesCount;
+            return mIndices.size() / 3;
         }
 
     private:
         std::vector<int> mIndices;
         std::vector<float> mVertices;
-        std::size_t mTrianglesCount;
     };
 
     template <class Impl>
@@ -659,7 +657,6 @@ namespace MWPhysics
             {
                 for (std::size_t i = 3; i > 0; --i)
                     addVertex(transform(triangle[i - 1]) * DetourTraits::recastScaleFactor);
-                ++mTrianglesCount;
             });
             return addShape(shape, callback);
         }
@@ -670,21 +667,18 @@ namespace MWPhysics
             {
                 for (std::size_t i = 0; i < 3; ++i)
                     addVertex(transform(triangle[i]) * DetourTraits::recastScaleFactor);
-                ++mTrianglesCount;
             });
             return addShape(shape, callback);
         }
 
         RecastMesh create()
         {
-            return RecastMesh(mIndices, mVertices, mTrianglesCount);
+            return RecastMesh(mIndices, mVertices);
         }
 
     private:
         std::vector<int> mIndices;
         std::vector<float> mVertices;
-        std::size_t mTrianglesCount = 0;
-        int mIndex = 0;
 
         RecastMeshBuilder& addShape(const btConcaveShape& shape, btTriangleCallback& callback)
         {
@@ -697,7 +691,7 @@ namespace MWPhysics
 
         void addVertex(const btVector3& worldPosition)
         {
-            mIndices.push_back(mIndex++);
+            mIndices.push_back(int(mIndices.size()));
             mVertices.push_back(worldPosition.x());
             mVertices.push_back(worldPosition.z());
             mVertices.push_back(worldPosition.y());
