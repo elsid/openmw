@@ -647,6 +647,7 @@ namespace DetourNavigator
     {
         if (!mObjects.insert(std::make_pair(id, Object {&shape, transform})).second)
             return false;
+        rebuild();
         mMeshBuilder.addObject(shape, transform);
         return true;
     }
@@ -657,6 +658,7 @@ namespace DetourNavigator
         {
             if (!mObjects.insert(std::make_pair(id, Object {&shape, transform})).second)
                 return false;
+            rebuild();
             mMeshBuilder.addObject(*concaveShape, transform);
             return true;
         }
@@ -667,26 +669,31 @@ namespace DetourNavigator
     {
         if (!mObjects.erase(id))
             return false;
-        rebuild();
+        mShouldRebuild = true;
         return true;
     }
 
     RecastMesh RecastMeshManager::getMesh()
     {
+        rebuild();
         return mMeshBuilder.create();
     }
 
     void RecastMeshManager::rebuild()
     {
-        mMeshBuilder = RecastMeshBuilder();
-        for (const auto& v : mObjects)
-            if (const auto heightField = dynamic_cast<const btHeightfieldTerrainShape*>(v.second.mShape))
-                mMeshBuilder.addObject(*heightField, v.second.mTransform);
-            else if (const auto concaveShape = dynamic_cast<const btConcaveShape*>(v.second.mShape))
-                mMeshBuilder.addObject(*concaveShape, v.second.mTransform);
+        if (mShouldRebuild)
+        {
+            mMeshBuilder = RecastMeshBuilder();
+            for (const auto& v : mObjects)
+                if (const auto heightField = dynamic_cast<const btHeightfieldTerrainShape*>(v.second.mShape))
+                    mMeshBuilder.addObject(*heightField, v.second.mTransform);
+                else if (const auto concaveShape = dynamic_cast<const btConcaveShape*>(v.second.mShape))
+                    mMeshBuilder.addObject(*concaveShape, v.second.mTransform);
+            mShouldRebuild = false;
+        }
     }
 
-    bool RecastMeshManagerCache::removeObject(std::size_t id)
+    bool CachedRecastMeshManager::removeObject(std::size_t id)
     {
         if (!mImpl.removeObject(id))
             return false;
@@ -694,7 +701,7 @@ namespace DetourNavigator
         return true;
     }
 
-    const RecastMesh& RecastMeshManagerCache::getMesh()
+    const RecastMesh& CachedRecastMeshManager::getMesh()
     {
         if (!mCached.is_initialized())
             mCached = mImpl.getMesh();
@@ -706,48 +713,40 @@ namespace DetourNavigator
 
     bool NavMeshManager::removeObject(std::size_t id)
     {
-        return mRecastMeshManager.removeObject(id);
-    }
-
-    NavMeshConstPtr NavMeshManager::getNavMesh(const osg::Vec3f& agentHalfExtents)
-    {
-        return makeNavMesh(agentHalfExtents, mRecastMeshManager.getMesh());
-    }
-
-    bool NavMeshManagerCache::removeObject(std::size_t id)
-    {
-        if (!mImpl.removeObject(id))
+        if (!mRecastMeshManager.removeObject(id))
             return false;
         ++mRevision;
         return true;
     }
 
-    void NavMeshManagerCache::reset(const osg::Vec3f& agentHalfExtents)
+    void NavMeshManager::reset(const osg::Vec3f& agentHalfExtents)
     {
         mCache.erase(agentHalfExtents);
         std::cout << "cache reset for agent=" << agentHalfExtents << std::endl;
     }
 
-    void NavMeshManagerCache::update(const osg::Vec3f& agentHalfExtents)
+    void NavMeshManager::update(const osg::Vec3f& agentHalfExtents)
     {
         const auto it = mCache.find(agentHalfExtents);
         if (it == mCache.end())
         {
-            mCache.insert(std::make_pair(agentHalfExtents, CacheItem {mImpl.getNavMesh(agentHalfExtents), mRevision}));
+            mCache.insert(std::make_pair(agentHalfExtents,
+                CacheItem {makeNavMesh(agentHalfExtents, mRecastMeshManager.getMesh()), mRevision}));
             std::cout << "cache set for agent=" << agentHalfExtents << std::endl;
         }
         else if (it->second.mRevision < mRevision)
         {
-            it->second = CacheItem {mImpl.getNavMesh(agentHalfExtents), mRevision};
+            it->second = CacheItem {makeNavMesh(agentHalfExtents, mRecastMeshManager.getMesh()), mRevision};
             std::cout << "cache update for agent=" << agentHalfExtents << std::endl;
         }
     }
 
-    NavMeshConstPtr NavMeshManagerCache::getNavMesh(const osg::Vec3f& agentHalfExtents)
+    NavMeshConstPtr NavMeshManager::getNavMesh(const osg::Vec3f& agentHalfExtents)
     {
         auto it = mCache.find(agentHalfExtents);
         if (it == mCache.end())
-            it = mCache.insert(std::make_pair(agentHalfExtents, CacheItem {mImpl.getNavMesh(agentHalfExtents), true})).first;
+            it = mCache.insert(std::make_pair(agentHalfExtents,
+                CacheItem {makeNavMesh(agentHalfExtents, mRecastMeshManager.getMesh()), mRevision})).first;
         else
             std::cout << "cache hit for agent=" << agentHalfExtents << std::endl;
         return it->second.mValue;

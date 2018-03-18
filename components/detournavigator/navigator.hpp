@@ -121,13 +121,14 @@ namespace DetourNavigator
             btTransform mTransform;
         };
 
+        bool mShouldRebuild = false;
         RecastMeshBuilder mMeshBuilder;
         std::unordered_map<std::size_t, Object> mObjects;
 
         void rebuild();
     };
 
-    class RecastMeshManagerCache
+    class CachedRecastMeshManager
     {
     public:
         template <class T>
@@ -157,24 +158,7 @@ namespace DetourNavigator
         template <class T>
         bool addObject(std::size_t id, const T& shape, const btTransform& transform)
         {
-            return mRecastMeshManager.addObject(id, shape, transform);
-        }
-
-        bool removeObject(std::size_t id);
-
-        NavMeshConstPtr getNavMesh(const osg::Vec3f& agentHalfExtents);
-
-    private:
-        RecastMeshManagerCache mRecastMeshManager;
-    };
-
-    class NavMeshManagerCache
-    {
-    public:
-        template <class T>
-        bool addObject(std::size_t id, const T& shape, const btTransform& transform)
-        {
-            if (!mImpl.addObject(id, shape, transform))
+            if (!mRecastMeshManager.addObject(id, shape, transform))
                 return false;
             ++mRevision;
             return true;
@@ -196,7 +180,7 @@ namespace DetourNavigator
         };
 
         std::size_t mRevision = 0;
-        NavMeshManager mImpl;
+        CachedRecastMeshManager mRecastMeshManager;
         std::map<osg::Vec3f, CacheItem> mCache;
     };
 
@@ -221,7 +205,7 @@ namespace DetourNavigator
                                          const osg::Vec3f& start, const osg::Vec3f& end);
 
     private:
-        NavMeshManagerCache mNavMeshManager;
+        NavMeshManager mNavMeshManager;
         std::map<osg::Vec3f, std::size_t> mAgents;
     };
 }
