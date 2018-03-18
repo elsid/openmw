@@ -760,7 +760,9 @@ namespace DetourNavigator
 
     AsyncNavMeshMaker::AsyncNavMeshMaker()
         : mThread([&] { process(); })
-    {}
+    {
+        mShouldStop = false;
+    }
 
     AsyncNavMeshMaker::~AsyncNavMeshMaker()
     {

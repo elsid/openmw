@@ -191,7 +191,7 @@ namespace DetourNavigator
         std::condition_variable mHasJob;
         Jobs mJobs;
         std::size_t mMaxRevision = 0;
-        std::atomic_bool mShouldStop {false};
+        std::atomic_bool mShouldStop;
 
         void process();
     };
