@@ -90,6 +90,8 @@ namespace MWPhysics
 
             void removeHeightField (int x, int y);
 
+            const HeightField* getHeightField(int x, int y) const;
+
             bool toggleCollisionMode();
 
             void stepSimulation(float dt);

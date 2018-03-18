@@ -1011,6 +1011,14 @@ namespace MWPhysics
         }
     }
 
+    const HeightField* PhysicsSystem::getHeightField(int x, int y) const
+    {
+        const auto heightField = mHeightFields.find(std::make_pair(x, y));
+        if (heightField == mHeightFields.end())
+            return nullptr;
+        return heightField->second;
+    }
+
     void PhysicsSystem::addObject (const MWWorld::Ptr& ptr, const std::string& mesh, int collisionType)
     {
         osg::ref_ptr<Resource::BulletShapeInstance> shapeInstance = mShapeManager->getInstance(mesh);
