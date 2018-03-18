@@ -711,6 +711,62 @@ namespace DetourNavigator
         return *mCached;
     }
 
+    AsyncNavMeshMaker::AsyncNavMeshMaker()
+        : mThread([&] { process(); })
+    {}
+
+    AsyncNavMeshMaker::~AsyncNavMeshMaker()
+    {
+        mShouldStop = true;
+        std::unique_lock<std::mutex> lock(mMutex);
+        mJobs.clear();
+        lock.unlock();
+        mHasJob.notify_one();
+        mThread.join();
+    }
+
+    void AsyncNavMeshMaker::post(const osg::Vec3f& agentHalfExtents, RecastMesh recastMesh,
+                                   const std::shared_ptr<NavMeshCacheItem>& mNavMeshCacheItem)
+    {
+        std::unique_lock<std::mutex> lock(mMutex);
+        mJobs[agentHalfExtents] = std::make_shared<Job>(Job {agentHalfExtents, std::move(recastMesh), mNavMeshCacheItem});
+        lock.unlock();
+        mHasJob.notify_one();
+    }
+
+    void AsyncNavMeshMaker::process()
+    {
+        std::cout << "start process jobs" << std::endl;
+        while (!mShouldStop)
+        {
+            std::unique_lock<std::mutex> lock(mMutex);
+            if (mJobs.empty())
+                mHasJob.wait(lock);
+            std::cout << "got " << mJobs.size() << " jobs" << std::endl;
+            if (mJobs.empty())
+                continue;
+            const auto job = mJobs.begin()->second;
+            mJobs.erase(mJobs.begin());
+            lock.unlock();
+            mMaxRevision = std::max(job->mNavMeshCacheItem->mRevision, mMaxRevision);
+            std::cout << "process job for agent=" << job->mAgentHalfExtents
+                      << " revision=" << job->mNavMeshCacheItem->mRevision
+                      << " max_revision=" << mMaxRevision << std::endl;
+            if (job->mNavMeshCacheItem->mRevision < mMaxRevision)
+                continue;
+            try
+            {
+                job->mNavMeshCacheItem->mValue = makeNavMesh(job->mAgentHalfExtents, job->mRecastMesh);
+                std::cout << "cache updated for agent=" << job->mAgentHalfExtents << std::endl;
+            }
+            catch (const std::exception& e)
+            {
+                std::cout << e.what() << std::endl;
+            }
+        }
+        std::cout << "stop process jobs" << std::endl;
+    }
+
     bool NavMeshManager::removeObject(std::size_t id)
     {
         if (!mRecastMeshManager.removeObject(id))
@@ -727,29 +783,26 @@ namespace DetourNavigator
 
     void NavMeshManager::update(const osg::Vec3f& agentHalfExtents)
     {
+        auto it = mCache.find(agentHalfExtents);
+        if (it == mCache.end())
+            it = mCache.insert(std::make_pair(agentHalfExtents, std::make_shared<NavMeshCacheItem>(mRevision))).first;
+        else if (it->second->mRevision >= mRevision)
+            return;
+        it->second->mRevision = mRevision;
+        mAsyncNavMeshCreator.post(agentHalfExtents, mRecastMeshManager.getMesh(), it->second);
+        std::cout << "cache update posted for agent=" << agentHalfExtents << std::endl;
+    }
+
+    NavMeshConstPtr NavMeshManager::getNavMesh(const osg::Vec3f& agentHalfExtents) const
+    {
         const auto it = mCache.find(agentHalfExtents);
         if (it == mCache.end())
         {
-            mCache.insert(std::make_pair(agentHalfExtents,
-                CacheItem {makeNavMesh(agentHalfExtents, mRecastMeshManager.getMesh()), mRevision}));
-            std::cout << "cache set for agent=" << agentHalfExtents << std::endl;
+            std::cout << "cache miss for agent=" << agentHalfExtents << std::endl;
+            return nullptr;
         }
-        else if (it->second.mRevision < mRevision)
-        {
-            it->second = CacheItem {makeNavMesh(agentHalfExtents, mRecastMeshManager.getMesh()), mRevision};
-            std::cout << "cache update for agent=" << agentHalfExtents << std::endl;
-        }
-    }
-
-    NavMeshConstPtr NavMeshManager::getNavMesh(const osg::Vec3f& agentHalfExtents)
-    {
-        auto it = mCache.find(agentHalfExtents);
-        if (it == mCache.end())
-            it = mCache.insert(std::make_pair(agentHalfExtents,
-                CacheItem {makeNavMesh(agentHalfExtents, mRecastMeshManager.getMesh()), mRevision})).first;
-        else
-            std::cout << "cache hit for agent=" << agentHalfExtents << std::endl;
-        return it->second.mValue;
+        std::cout << "cache hit for agent=" << agentHalfExtents << " value=" << it->second->mValue << std::endl;
+        return it->second->mValue;
     }
 
     void Navigator::addAgent(const osg::Vec3f& agentHalfExtents)
@@ -783,6 +836,8 @@ namespace DetourNavigator
         std::cout << "Navigator::findPath agentHalfExtents=" << agentHalfExtents
                   << " start=" << start << " end=" << end << '\n';
         const auto navMesh = mNavMeshManager.getNavMesh(agentHalfExtents);
+        if (!navMesh)
+            return std::vector<osg::Vec3f>();
         auto result = findSmoothPath(*navMesh, agentHalfExtents,
             start * DetourTraits::recastScaleFactor, end * DetourTraits::recastScaleFactor);
         for (auto& v : result)

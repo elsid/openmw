@@ -10,9 +10,14 @@
 
 #include <boost/optional.hpp>
 
+#include <atomic>
+#include <condition_variable>
 #include <map>
 #include <memory>
+#include <mutex>
+#include <queue>
 #include <stdexcept>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -152,6 +157,45 @@ namespace DetourNavigator
     using NavMeshPtr = std::shared_ptr<dtNavMesh>;
     using NavMeshConstPtr = std::shared_ptr<const dtNavMesh>;
 
+    struct NavMeshCacheItem
+    {
+        NavMeshConstPtr mValue = nullptr;
+        std::size_t mRevision;
+
+        NavMeshCacheItem(std::size_t mRevision)
+            : mRevision(mRevision)
+        {}
+    };
+
+    class AsyncNavMeshMaker
+    {
+    public:
+        AsyncNavMeshMaker();
+        ~AsyncNavMeshMaker();
+
+        void post(const osg::Vec3f& agentHalfExtents, RecastMesh recastMesh,
+                  const std::shared_ptr<NavMeshCacheItem>& mNavMeshCacheItem);
+
+    private:
+        struct Job
+        {
+            osg::Vec3f mAgentHalfExtents;
+            RecastMesh mRecastMesh;
+            std::shared_ptr<NavMeshCacheItem> mNavMeshCacheItem;
+        };
+
+        using Jobs = std::map<osg::Vec3f, std::shared_ptr<Job>>;
+
+        std::thread mThread;
+        std::mutex mMutex;
+        std::condition_variable mHasJob;
+        Jobs mJobs;
+        std::size_t mMaxRevision = 0;
+        std::atomic_bool mShouldStop {false};
+
+        void process();
+    };
+
     class NavMeshManager
     {
     public:
@@ -170,18 +214,13 @@ namespace DetourNavigator
 
         void update(const osg::Vec3f& agentHalfExtents);
 
-        NavMeshConstPtr getNavMesh(const osg::Vec3f& agentHalfExtents);
+        NavMeshConstPtr getNavMesh(const osg::Vec3f& agentHalfExtents) const;
 
     private:
-        struct CacheItem
-        {
-            NavMeshConstPtr mValue;
-            std::size_t mRevision;
-        };
-
         std::size_t mRevision = 0;
         CachedRecastMeshManager mRecastMeshManager;
-        std::map<osg::Vec3f, CacheItem> mCache;
+        std::map<osg::Vec3f, std::shared_ptr<NavMeshCacheItem>> mCache;
+        AsyncNavMeshMaker mAsyncNavMeshCreator;
     };
 
     class Navigator
