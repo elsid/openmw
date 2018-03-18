@@ -1361,13 +1361,11 @@ namespace MWPhysics
         template <class T>
         bool addObject(std::size_t id, const T& shape, const btTransform& transform)
         {
-            std::cout << "NavigatorImpl::addObject object=" << id << std::endl;
             return mNavMeshManager.addObject(id, shape, transform);
         }
 
         bool removeObject(std::size_t id)
         {
-            std::cout << "NavigatorImpl::removeObject object=" << id << std::endl;
             return mNavMeshManager.removeObject(id);
         }
 
