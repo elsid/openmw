@@ -229,8 +229,6 @@ namespace MWPhysics
 
             float mPhysicsDt;
 
-            std::unique_ptr<DetourNavigator::Navigator> mNavigator;
-
             PhysicsSystem (const PhysicsSystem&);
             PhysicsSystem& operator= (const PhysicsSystem&);
     };

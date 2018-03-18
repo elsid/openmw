@@ -98,6 +98,7 @@ namespace MWWorld
             std::unique_ptr<MWWorld::Scene> mWorldScene;
             std::unique_ptr<MWWorld::WeatherManager> mWeatherManager;
             std::shared_ptr<ProjectileManager> mProjectileManager;
+            std::unique_ptr<DetourNavigator::Navigator> mNavigator;
 
             bool mGodMode;
             bool mScriptsEnabled;

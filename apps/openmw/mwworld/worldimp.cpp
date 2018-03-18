@@ -160,6 +160,7 @@ namespace MWWorld
         mPhysics.reset(new MWPhysics::PhysicsSystem(resourceSystem, rootNode));
         mRendering.reset(new MWRender::RenderingManager(viewer, rootNode, resourceSystem, workQueue, &mFallback, resourcePath));
         mProjectileManager.reset(new ProjectileManager(mRendering->getLightRoot(), resourceSystem, mRendering.get(), mPhysics.get()));
+        mNavigator.reset(new DetourNavigator::Navigator);
 
         mRendering->preloadCommonAssets();
 
@@ -3489,7 +3490,7 @@ namespace MWWorld
 
     DetourNavigator::Navigator* World::getNavigator() const
     {
-        return mPhysics->getNavigator();
+        return mNavigator.get();
     }
 
 }

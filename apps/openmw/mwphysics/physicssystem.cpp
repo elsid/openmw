@@ -530,7 +530,6 @@ namespace MWPhysics
         , mWaterEnabled(false)
         , mParentNode(parentNode)
         , mPhysicsDt(1.f / 60.f)
-        , mNavigator(new DetourNavigator::Navigator)
     {
         mResourceSystem->addResourceManager(mShapeManager.get());
 
@@ -994,7 +993,8 @@ namespace MWPhysics
         mCollisionWorld->addCollisionObject(heightfield->getCollisionObject(), CollisionType_HeightMap,
             CollisionType_Actor|CollisionType_Projectile);
 
-        mNavigator->addObject(std::size_t(heightfield), *heightfield->getShape(),
+        const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
+        navigator->addObject(std::size_t(heightfield), *heightfield->getShape(),
                               heightfield->getCollisionObject()->getWorldTransform());
     }
 
@@ -1003,7 +1003,8 @@ namespace MWPhysics
         HeightFieldMap::iterator heightfield = mHeightFields.find(std::make_pair(x,y));
         if(heightfield != mHeightFields.end())
         {
-            mNavigator->removeObject(std::size_t(heightfield->second));
+            const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
+            navigator->removeObject(std::size_t(heightfield->second));
             mCollisionWorld->removeCollisionObject(heightfield->second->getCollisionObject());
             delete heightfield->second;
             mHeightFields.erase(heightfield);
@@ -1026,7 +1027,10 @@ namespace MWPhysics
                                            CollisionType_Actor|CollisionType_HeightMap|CollisionType_Projectile);
 
         if (const auto concaveShape = dynamic_cast<const btConcaveShape*>(obj->getShapeInstance()->mCollisionShape))
-            mNavigator->addObject(std::size_t(obj), *concaveShape, obj->getCollisionObject()->getWorldTransform());
+        {
+            const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
+            navigator->addObject(std::size_t(obj), *concaveShape, obj->getCollisionObject()->getWorldTransform());
+        }
     }
 
     void PhysicsSystem::remove(const MWWorld::Ptr &ptr)
@@ -1034,7 +1038,8 @@ namespace MWPhysics
         ObjectMap::iterator found = mObjects.find(ptr);
         if (found != mObjects.end())
         {
-            mNavigator->removeObject(std::size_t(found->second));
+            const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
+            navigator->removeObject(std::size_t(found->second));
             mCollisionWorld->removeCollisionObject(found->second->getCollisionObject());
 
             if (mUnrefQueue.get())
@@ -1401,10 +1406,5 @@ namespace MWPhysics
         mWaterCollisionObject->setCollisionShape(mWaterCollisionShape.get());
         mCollisionWorld->addCollisionObject(mWaterCollisionObject.get(), CollisionType_Water,
                                                     CollisionType_Actor);
-    }
-
-    DetourNavigator::Navigator* PhysicsSystem::getNavigator() const
-    {
-        return mNavigator.get();
     }
 }
