@@ -651,24 +651,24 @@ namespace MWPhysics
     class RecastMeshBuilder
     {
     public:
-        RecastMeshBuilder& addShape(const btConcaveShape& shape, const btTransform& transform)
+        RecastMeshBuilder& addObject(const btConcaveShape& shape, const btTransform& transform)
         {
             auto callback = makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
             {
                 for (std::size_t i = 3; i > 0; --i)
                     addVertex(transform(triangle[i - 1]) * DetourTraits::recastScaleFactor);
             });
-            return addShape(shape, callback);
+            return addObject(shape, callback);
         }
 
-        RecastMeshBuilder& addShape(const btHeightfieldTerrainShape& shape, const btTransform& transform)
+        RecastMeshBuilder& addObject(const btHeightfieldTerrainShape& shape, const btTransform& transform)
         {
             auto callback = makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
             {
                 for (std::size_t i = 0; i < 3; ++i)
                     addVertex(transform(triangle[i]) * DetourTraits::recastScaleFactor);
             });
-            return addShape(shape, callback);
+            return addObject(shape, callback);
         }
 
         RecastMesh create()
@@ -680,7 +680,7 @@ namespace MWPhysics
         std::vector<int> mIndices;
         std::vector<float> mVertices;
 
-        RecastMeshBuilder& addShape(const btConcaveShape& shape, btTriangleCallback& callback)
+        RecastMeshBuilder& addObject(const btConcaveShape& shape, btTriangleCallback& callback)
         {
             btVector3 aabbMin;
             btVector3 aabbMax;
@@ -705,7 +705,7 @@ namespace MWPhysics
         {
             if (!mHeightFields.insert(object).second)
                 return false;
-            mMeshBuilder.addShape(*object->getShape(), object->getCollisionObject()->getWorldTransform());
+            mMeshBuilder.addObject(*object->getShape(), object->getCollisionObject()->getWorldTransform());
             return true;
         }
 
@@ -723,7 +723,7 @@ namespace MWPhysics
             {
                 if (!mObjects.insert(object).second)
                     return false;
-                mMeshBuilder.addShape(*concaveShape, object->getCollisionObject()->getWorldTransform());
+                mMeshBuilder.addObject(*concaveShape, object->getCollisionObject()->getWorldTransform());
                 return true;
             }
             return false;
@@ -755,10 +755,10 @@ namespace MWPhysics
         {
             mMeshBuilder = RecastMeshBuilder();
             for (auto v : mHeightFields)
-                mMeshBuilder.addShape(*v->getShape(), v->getCollisionObject()->getWorldTransform());
+                mMeshBuilder.addObject(*v->getShape(), v->getCollisionObject()->getWorldTransform());
             for (auto v : mObjects)
                 if (const auto concaveShape = dynamic_cast<btConcaveShape*>(v->getShapeInstance()->mCollisionShape))
-                    mMeshBuilder.addShape(*concaveShape, v->getCollisionObject()->getWorldTransform());
+                    mMeshBuilder.addObject(*concaveShape, v->getCollisionObject()->getWorldTransform());
         }
     };
 
