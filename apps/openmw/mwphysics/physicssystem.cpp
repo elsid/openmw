@@ -837,38 +837,27 @@ namespace MWPhysics
         boost::optional<RecastMesh> mCached;
     };
 
-    struct AgentParams
+    namespace
     {
-        float mHeight;
-        float mMaxClimb;
-        float mRadius;
-    };
-
-    AgentParams makeAgentParams(const Actor& actor)
-    {
-        AgentParams agentParams;
-        agentParams.mHeight = 2.0f * actor.getHalfExtents().z() * DetourTraits::recastScaleFactor;
-        agentParams.mMaxClimb = sStepSizeUp * DetourTraits::recastScaleFactor;
-        agentParams.mRadius = actor.getHalfExtents().x() * DetourTraits::recastScaleFactor;
-        return agentParams;
-    }
-
-    std::tuple<float, float, float> makeTuple(const AgentParams& value)
-    {
-        return std::make_tuple(value.mHeight, value.mMaxClimb, value.mRadius);
-    }
-
-    struct LessAgentParams
-    {
-        bool operator ()(const AgentParams& lhs, const AgentParams& rhs) const
+        float getHeight(const osg::Vec3f& agentHalfExtents)
         {
-            return makeTuple(lhs) < makeTuple(rhs);
+            return 2.0f * agentHalfExtents.z() * DetourTraits::recastScaleFactor;
         }
-    };
+
+        float getMaxClimb()
+        {
+            return sStepSizeUp * DetourTraits::recastScaleFactor;
+        }
+
+        float getRadius(const osg::Vec3f& agentHalfExtents)
+        {
+            return agentHalfExtents.x() * DetourTraits::recastScaleFactor;
+        }
+    }
 
     using NavMeshPtr = std::unique_ptr<dtNavMesh, decltype(&dtFreeNavMesh)>;
 
-    NavMeshPtr makeNavMesh(const AgentParams& agentParams, const RecastMesh& recastMesh)
+    NavMeshPtr makeNavMesh(const osg::Vec3f& agentHalfExtents, const RecastMesh& recastMesh)
     {
         rcContext context;
         rcConfig config;
@@ -877,9 +866,9 @@ namespace MWPhysics
         config.cs = DetourTraits::cellSize;
         config.ch = DetourTraits::cellHeight;
         config.walkableSlopeAngle = sMaxSlope;
-        config.walkableHeight = int(std::ceil(agentParams.mHeight / config.ch));
-        config.walkableClimb = int(std::floor(agentParams.mMaxClimb / config.ch));
-        config.walkableRadius = int(std::ceil(agentParams.mRadius / config.cs));
+        config.walkableHeight = int(std::ceil(getHeight(agentHalfExtents) / config.ch));
+        config.walkableClimb = int(std::floor(getMaxClimb() / config.ch));
+        config.walkableRadius = int(std::ceil(getRadius(agentHalfExtents) / config.cs));
         config.maxEdgeLen = int(std::round(DetourTraits::maxEdgeLen / config.cs));
         config.maxSimplificationError = DetourTraits::maxSimplificationError;
         config.minRegionArea = DetourTraits::regionMinSize * DetourTraits::regionMinSize;
@@ -966,9 +955,9 @@ namespace MWPhysics
         params.offMeshConFlags = nullptr;
         params.offMeshConUserID = nullptr;
         params.offMeshConCount = 0;
-        params.walkableHeight = agentParams.mHeight;
-        params.walkableRadius = agentParams.mRadius;
-        params.walkableClimb = agentParams.mMaxClimb;
+        params.walkableHeight = getHeight(agentHalfExtents);
+        params.walkableRadius = getRadius(agentHalfExtents);
+        params.walkableClimb = getMaxClimb();
         rcVcopy(params.bmin, polyMesh.bmin);
         rcVcopy(params.bmax, polyMesh.bmax);
         params.cs = config.cs;
@@ -1006,9 +995,9 @@ namespace MWPhysics
             return mRecastMeshManager.removeObject(object);
         }
 
-        NavMeshPtr getNavMesh(const AgentParams& agentParams)
+        NavMeshPtr getNavMesh(const osg::Vec3f& agentHalfExtents)
         {
-            return makeNavMesh(agentParams, mRecastMeshManager.getMesh());
+            return makeNavMesh(agentHalfExtents, mRecastMeshManager.getMesh());
         }
 
     private:
@@ -1036,17 +1025,17 @@ namespace MWPhysics
             return true;
         }
 
-        const dtNavMesh* getNavMesh(const AgentParams& agentParams)
+        const dtNavMesh* getNavMesh(const osg::Vec3f& agentHalfExtents)
         {
-            auto it = mCache.find(agentParams);
+            auto it = mCache.find(agentHalfExtents);
             if (it == mCache.end())
-                it = mCache.insert(std::make_pair(agentParams, mImpl.getNavMesh(agentParams))).first;
+                it = mCache.insert(std::make_pair(agentHalfExtents, mImpl.getNavMesh(agentHalfExtents))).first;
             return it->second.get();
         }
 
     private:
         NavMeshManager mImpl;
-        std::map<AgentParams, NavMeshPtr, LessAgentParams> mCache;
+        std::map<osg::Vec3f, NavMeshPtr> mCache;
     };
 
     namespace
@@ -1379,10 +1368,6 @@ namespace MWPhysics
     class NavigatorImpl
     {
     public:
-        NavigatorImpl(std::map<MWWorld::ConstPtr, Actor*>& actors)
-            : mActors(actors)
-        {}
-
         template <class T>
         bool addObject(T* object)
         {
@@ -1397,14 +1382,13 @@ namespace MWPhysics
             return mNavMeshManager.removeObject(object);
         }
 
-        std::vector<osg::Vec3f> findPath(const MWWorld::ConstPtr& actorPtr,
+        std::vector<osg::Vec3f> findPath(const osg::Vec3f& agentHalfExtents,
                                          const osg::Vec3f& start, const osg::Vec3f& end)
         {
-            std::cout << "NavigatorImpl::findPath actor=" << actorPtr.getBase()
-                      << " start=" << start << " end=" << end << std::endl;
-            const auto& actor = *mActors.at(actorPtr);
-            const auto navMesh = mNavMeshManager.getNavMesh(makeAgentParams(actor));
-            auto result = findSmoothPath(*navMesh, actor.getHalfExtents(),
+            std::cout << "NavigatorImpl::findPath agentHalfExtents=" << agentHalfExtents
+                      << " start=" << start << " end=" << end << '\n';
+            const auto navMesh = mNavMeshManager.getNavMesh(agentHalfExtents);
+            auto result = findSmoothPath(*navMesh, agentHalfExtents,
                 start * DetourTraits::recastScaleFactor, end * DetourTraits::recastScaleFactor);
             for (auto& v : result)
                 v *= DetourTraits::invertedRecastScaleFactor;
@@ -1412,7 +1396,6 @@ namespace MWPhysics
         }
 
     private:
-        std::map<MWWorld::ConstPtr, Actor*>& mActors;
         NavMeshManagerCache mNavMeshManager;
     };
 
@@ -1420,10 +1403,10 @@ namespace MWPhysics
         : mImpl(&impl)
     {}
 
-    std::vector<osg::Vec3f> Navigator::findPath(const MWWorld::ConstPtr& actor,
+    std::vector<osg::Vec3f> Navigator::findPath(const osg::Vec3f& agentHalfExtents,
                                                 const osg::Vec3f& start, const osg::Vec3f& end) const
     {
-        return mImpl->findPath(actor, start, end);
+        return mImpl->findPath(agentHalfExtents, start, end);
     }
 
 #undef OPENMW_CHECK_DT_RESULT
@@ -1440,7 +1423,7 @@ namespace MWPhysics
         , mWaterEnabled(false)
         , mParentNode(parentNode)
         , mPhysicsDt(1.f / 60.f)
-        , mNavigator(new NavigatorImpl(mActors))
+        , mNavigator(new NavigatorImpl)
     {
         mResourceSystem->addResourceManager(mShapeManager.get());
 

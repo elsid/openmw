@@ -61,7 +61,7 @@ namespace MWPhysics
     public:
         Navigator(NavigatorImpl& impl);
 
-        std::vector<osg::Vec3f> findPath(const MWWorld::ConstPtr& actor,
+        std::vector<osg::Vec3f> findPath(const osg::Vec3f& agentHalfExtents,
                                          const osg::Vec3f& start, const osg::Vec3f& end) const;
 
     private:

@@ -385,7 +385,8 @@ bool MWMechanics::AiPackage::buildOptimalPath(const MWWorld::Ptr& actor, const E
     try
     {
         const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
-        const auto path = navigator.findPath(actor, startPosition.asVec3(), endPosition);
+        const auto halfExtents = MWBase::Environment::get().getWorld()->getHalfExtents(actor);
+        const auto path = navigator.findPath(halfExtents, startPosition.asVec3(), endPosition);
 
         if (path.empty())
             return false;
