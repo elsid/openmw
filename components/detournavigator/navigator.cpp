@@ -131,15 +131,18 @@ namespace DetourNavigator
             value.borderSize = 0;
         }
 
-        void freeCompactHeightfield(rcCompactHeightfield* value)
+        struct CompactHeightfieldStackDeleter
         {
-            rcFree(value->cells);
-            rcFree(value->spans);
-            rcFree(value->dist);
-            rcFree(value->areas);
-        }
+            void operator ()(rcCompactHeightfield* value) const
+            {
+                rcFree(value->cells);
+                rcFree(value->spans);
+                rcFree(value->dist);
+                rcFree(value->areas);
+            }
+        };
 
-        using CompactHeightfieldStackPtr = std::unique_ptr<rcCompactHeightfield, decltype(&freeCompactHeightfield)>;
+        using CompactHeightfieldStackPtr = std::unique_ptr<rcCompactHeightfield, CompactHeightfieldStackDeleter>;
 
         void initContourSet(rcContourSet& value)
         {
@@ -147,17 +150,20 @@ namespace DetourNavigator
             value.nconts = 0;
         }
 
-        void freeContourSet(rcContourSet* value)
+        struct ContourSetStackDeleter
         {
-            for (int i = 0; i < value->nconts; ++i)
+            void operator ()(rcContourSet* value) const
             {
-                rcFree(value->conts[i].verts);
-                rcFree(value->conts[i].rverts);
+                for (int i = 0; i < value->nconts; ++i)
+                {
+                    rcFree(value->conts[i].verts);
+                    rcFree(value->conts[i].rverts);
+                }
+                rcFree(value->conts);
             }
-            rcFree(value->conts);
-        }
+        };
 
-        using ContourSetStackPtr = std::unique_ptr<rcContourSet, decltype(&freeContourSet)>;
+        using ContourSetStackPtr = std::unique_ptr<rcContourSet, ContourSetStackDeleter>;
 
         void initPolyMesh(rcPolyMesh& value)
         {
@@ -168,16 +174,19 @@ namespace DetourNavigator
             value.areas = nullptr;
         }
 
-        void freePolyMesh(rcPolyMesh* value)
+        struct PolyMeshStackDeleter
         {
-            rcFree(value->verts);
-            rcFree(value->polys);
-            rcFree(value->regs);
-            rcFree(value->flags);
-            rcFree(value->areas);
-        }
+            void operator ()(rcPolyMesh* value) const
+            {
+                rcFree(value->verts);
+                rcFree(value->polys);
+                rcFree(value->regs);
+                rcFree(value->flags);
+                rcFree(value->areas);
+            }
+        };
 
-        using PolyMeshStackPtr = std::unique_ptr<rcPolyMesh, decltype(&freePolyMesh)>;
+        using PolyMeshStackPtr = std::unique_ptr<rcPolyMesh, PolyMeshStackDeleter>;
 
         void initPolyMesh(rcPolyMeshDetail& value)
         {
@@ -186,14 +195,17 @@ namespace DetourNavigator
             value.tris = nullptr;
         }
 
-        void freePolyMeshDetail(rcPolyMeshDetail* value)
+        struct PolyMeshDetailStackDeleter
         {
-            rcFree(value->meshes);
-            rcFree(value->verts);
-            rcFree(value->tris);
-        }
+            void operator ()(rcPolyMeshDetail* value) const
+            {
+                rcFree(value->meshes);
+                rcFree(value->verts);
+                rcFree(value->tris);
+            }
+        };
 
-        using PolyMeshDetailStackPtr = std::unique_ptr<rcPolyMeshDetail, decltype(&freePolyMeshDetail)>;
+        using PolyMeshDetailStackPtr = std::unique_ptr<rcPolyMeshDetail, PolyMeshDetailStackDeleter>;
 
         NavMeshPtr makeNavMesh(const osg::Vec3f& agentHalfExtents, const RecastMesh& recastMesh)
         {
@@ -251,14 +263,14 @@ namespace DetourNavigator
 
             rcPolyMesh polyMesh;
             initPolyMesh(polyMesh);
-            const PolyMeshStackPtr polyMeshPtr(&polyMesh, &freePolyMesh);
+            const PolyMeshStackPtr polyMeshPtr(&polyMesh);
             rcPolyMeshDetail polyMeshDetail;
             initPolyMesh(polyMeshDetail);
-            const PolyMeshDetailStackPtr polyMeshDetailPtr(&polyMeshDetail, &freePolyMeshDetail);
+            const PolyMeshDetailStackPtr polyMeshDetailPtr(&polyMeshDetail);
             {
                 rcCompactHeightfield compact;
                 initCompactHeightfield(compact);
-                const CompactHeightfieldStackPtr compatPtr(&compact, &freeCompactHeightfield);
+                const CompactHeightfieldStackPtr compatPtr(&compact);
 
                 OPENMW_CHECK_DT_RESULT(rcBuildCompactHeightfield(&context, config.walkableHeight, config.walkableClimb,
                                                                  solid, compact));
@@ -268,7 +280,7 @@ namespace DetourNavigator
 
                 rcContourSet contourSet;
                 initContourSet(contourSet);
-                const ContourSetStackPtr contourSetPtr(&contourSet, &freeContourSet);
+                const ContourSetStackPtr contourSetPtr(&contourSet);
                 OPENMW_CHECK_DT_RESULT(rcBuildContours(&context, compact, config.maxSimplificationError, config.maxEdgeLen,
                                                        contourSet));
                 OPENMW_CHECK_DT_RESULT(rcBuildPolyMesh(&context, contourSet, config.maxVertsPerPoly, polyMesh));
