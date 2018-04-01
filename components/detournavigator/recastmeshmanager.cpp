@@ -7,8 +7,7 @@ namespace DetourNavigator
     RecastMeshManager::RecastMeshManager(const Settings& settings)
         : mSettings(settings)
         , mMeshBuilder(settings)
-    {
-    }
+    {}
 
     bool RecastMeshManager::addObject(std::size_t id, const btHeightfieldTerrainShape& shape, const btTransform& transform)
     {
@@ -32,12 +31,15 @@ namespace DetourNavigator
         return false;
     }
 
-    bool RecastMeshManager::removeObject(std::size_t id)
+    boost::optional<RecastMeshManager::Object> RecastMeshManager::removeObject(std::size_t id)
     {
-        if (!mObjects.erase(id))
-            return false;
+        const auto object = mObjects.find(id);
+        if (object == mObjects.end())
+            return boost::none;
+        const auto result = object->second;
+        mObjects.erase(object);
         mShouldRebuild = true;
-        return true;
+        return result;
     }
 
     std::shared_ptr<RecastMesh> RecastMeshManager::getMesh()

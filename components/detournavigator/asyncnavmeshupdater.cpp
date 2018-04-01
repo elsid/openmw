@@ -8,7 +8,6 @@ namespace DetourNavigator
 {
     AsyncNavMeshUpdater::AsyncNavMeshUpdater(const Settings& settings)
         : mSettings(settings),
-          mMaxRevision(0),
           mShouldStop(),
           mThread([&] { process(); })
     {
@@ -25,10 +24,20 @@ namespace DetourNavigator
     }
 
     void AsyncNavMeshUpdater::post(const osg::Vec3f& agentHalfExtents, const std::shared_ptr<RecastMesh>& recastMesh,
-                                   const std::shared_ptr<NavMeshCacheItem>& mNavMeshCacheItem)
+        const std::shared_ptr<NavMeshCacheItem>& mNavMeshCacheItem, std::set<TilePosition>&& changedTiles)
     {
         const std::lock_guard<std::mutex> lock(mMutex);
-        mJobs[agentHalfExtents] = std::make_shared<Job>(Job {agentHalfExtents, recastMesh, mNavMeshCacheItem});
+        const auto job = mJobs.find(agentHalfExtents);
+        if (job == mJobs.end() || job->second->mChangedTiles.empty())
+        {
+            mJobs[agentHalfExtents] = std::make_shared<Job>(Job {agentHalfExtents, recastMesh, mNavMeshCacheItem,
+                                                                 std::move(changedTiles)});
+        }
+        else
+        {
+            job->second->mRecastMesh = recastMesh;
+            job->second->mChangedTiles.insert(changedTiles.begin(), changedTiles.end());
+        }
         mHasJob.notify_all();
     }
 
@@ -48,19 +57,18 @@ namespace DetourNavigator
                 const auto job = mJobs.begin()->second;
                 mJobs.erase(mJobs.begin());
                 lock.unlock();
-                mMaxRevision = std::max(job->mNavMeshCacheItem->mRevision, mMaxRevision);
-                log("process job for agent=", job->mAgentHalfExtents,
-                    " revision=", job->mNavMeshCacheItem->mRevision,
-                    " max_revision=", mMaxRevision);
-                if (job->mNavMeshCacheItem->mRevision < mMaxRevision)
-                    continue;
+                log("process job for agent=", job->mAgentHalfExtents);
                 using float_milliseconds = std::chrono::duration<float, std::milli>;
                 const auto start = std::chrono::steady_clock::now();
 #ifdef OPENMW_WRITE_TO_FILE
                 const auto revision = std::to_string(std::time(nullptr));
                 writeToFile(*job->mRecastMesh, revision);
 #endif
-                job->mNavMeshCacheItem->mValue = makeNavMesh(job->mAgentHalfExtents, *job->mRecastMesh, mSettings);
+                if (job->mNavMeshCacheItem->mValue && !job->mChangedTiles.empty())
+                    updateNavMesh(job->mAgentHalfExtents, *job->mRecastMesh, job->mChangedTiles, mSettings,
+                                  *job->mNavMeshCacheItem->mValue);
+                else
+                    job->mNavMeshCacheItem->mValue = makeNavMesh(job->mAgentHalfExtents, *job->mRecastMesh, mSettings);
 #ifdef OPENMW_WRITE_TO_FILE
                 writeToFile(*job->mNavMeshCacheItem->mValue, revision);
 #endif
