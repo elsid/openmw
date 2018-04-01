@@ -4,6 +4,8 @@
 #include <memory>
 #include <vector>
 
+#include <osg/Vec3f>
+
 namespace DetourNavigator
 {
     class ChunkyTriMesh;
@@ -39,11 +41,23 @@ namespace DetourNavigator
             return *mChunkyTriMesh;
         }
 
+        const osg::Vec3f& getBoundsMin() const
+        {
+            return mBoundsMin;
+        }
+
+        const osg::Vec3f& getBoundsMax() const
+        {
+            return mBoundsMax;
+        }
+
     private:
         std::vector<int> mIndices;
         std::vector<float> mVertices;
         const Settings& mSettings;
         std::unique_ptr<ChunkyTriMesh> mChunkyTriMesh;
+        osg::Vec3f mBoundsMin;
+        osg::Vec3f mBoundsMax;
     };
 }
 

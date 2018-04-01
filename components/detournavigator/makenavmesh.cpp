@@ -253,10 +253,8 @@ namespace DetourNavigator
             getRadius(agentHalfExtents, settings),
             " changedTile=", changedTile);
 
-        osg::Vec3f boundsMin;
-        osg::Vec3f boundsMax;
-        rcCalcBounds(recastMesh.getVertices().data(), int(recastMesh.getVerticesCount()),
-                        boundsMin.ptr(), boundsMax.ptr());
+        const auto& boundsMin = recastMesh.getBoundsMin();
+        const auto& boundsMax = recastMesh.getBoundsMax();
 
         int gridWidth;
         int gridHeight;
