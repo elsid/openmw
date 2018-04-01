@@ -1,6 +1,7 @@
 #include "asyncnavmeshupdater.hpp"
 #include "debug.hpp"
 #include "makenavmesh.hpp"
+#include "settings.hpp"
 
 #include <iostream>
 
@@ -60,18 +61,18 @@ namespace DetourNavigator
                 log("process job for agent=", job->mAgentHalfExtents);
                 using float_milliseconds = std::chrono::duration<float, std::milli>;
                 const auto start = std::chrono::steady_clock::now();
-#ifdef OPENMW_WRITE_TO_FILE
-                const auto revision = std::to_string(std::time(nullptr));
-                writeToFile(*job->mRecastMesh, revision);
-#endif
+                std::string revision;
+                if (mSettings.mEnableWriteNavMeshToFile || mSettings.mEnableWriteRecastMeshToFile)
+                    revision = std::to_string(std::time(nullptr));
+                if (mSettings.mEnableWriteRecastMeshToFile)
+                    writeToFile(*job->mRecastMesh, mSettings.mRecastMeshPathPrefix, revision);
                 if (job->mNavMeshCacheItem->mValue && !job->mChangedTiles.empty())
                     updateNavMesh(job->mAgentHalfExtents, *job->mRecastMesh, job->mChangedTiles, mSettings,
                                   *job->mNavMeshCacheItem->mValue);
                 else
                     job->mNavMeshCacheItem->mValue = makeNavMesh(job->mAgentHalfExtents, *job->mRecastMesh, mSettings);
-#ifdef OPENMW_WRITE_TO_FILE
-                writeToFile(*job->mNavMeshCacheItem->mValue, revision);
-#endif
+                if (mSettings.mEnableWriteNavMeshToFile)
+                    writeToFile(*job->mNavMeshCacheItem->mValue, mSettings.mNavMeshPathPrefix, revision);
                 const auto finish = std::chrono::steady_clock::now();
                 log("cache updated for agent=", job->mAgentHalfExtents,
                     " time=", std::chrono::duration_cast<float_milliseconds>(finish - start).count(), "ms");

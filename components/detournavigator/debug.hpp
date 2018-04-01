@@ -9,16 +9,12 @@
 #include <sstream>
 #include <string>
 
-#ifdef OPENMW_WRITE_OBJ
-#include <vector>
-#endif
-
-#ifdef OPENMW_WRITE_TO_FILE
 class dtNavMesh;
-#endif
 
 namespace DetourNavigator
 {
+    class RecastMesh;
+
     inline std::ostream& operator <<(std::ostream& stream, const osg::Vec3f& value)
     {
         return stream << '(' << std::setprecision(std::numeric_limits<float>::max_exponent10) << value.x()
@@ -26,19 +22,6 @@ namespace DetourNavigator
                       << ", " << std::setprecision(std::numeric_limits<float>::max_exponent10) << value.z()
                       << ')';
     }
-
-// Use to dump scene to load from recastnavigation demo tool
-#ifdef OPENMW_WRITE_OBJ
-    void writeObj(const std::vector<float>& vertices, const std::vector<int>& indices);
-#endif
-
-#ifdef OPENMW_WRITE_TO_FILE
-    class RecastMesh;
-
-    void writeToFile(const RecastMesh& recastMesh, const std::string& revision);
-
-    void writeToFile(const dtNavMesh& navMesh, const std::string& revision);
-#endif
 
     class Log
     {
@@ -93,6 +76,9 @@ namespace DetourNavigator
         write(stream, std::forward<Ts>(values) ...);
         log.write(stream.str());
     }
+
+    void writeToFile(const RecastMesh& recastMesh, const std::string& pathPrefix, const std::string& revision);
+    void writeToFile(const dtNavMesh& navMesh, const std::string& pathPrefix, const std::string& revision);
 }
 
 #endif

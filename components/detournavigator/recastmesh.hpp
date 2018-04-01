@@ -1,13 +1,12 @@
 #ifndef OPENMW_COMPONENTS_DETOURNAVIGATOR_RECASTMESH_H
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_RECASTMESH_H
 
-#include "chunkytrimesh.hpp"
-
 #include <memory>
 #include <vector>
 
 namespace DetourNavigator
 {
+    class ChunkyTriMesh;
     struct Settings;
 
     class RecastMesh
