@@ -3,6 +3,9 @@
 
 #include "asyncnavmeshupdater.hpp"
 #include "cachedrecastmeshmanager.hpp"
+#include "sharednavmesh.hpp"
+
+#include <BulletCollision/CollisionShapes/btHeightfieldTerrainShape.h>
 
 #include <BulletCollision/CollisionShapes/btHeightfieldTerrainShape.h>
 
@@ -15,8 +18,6 @@ class dtNavMesh;
 
 namespace DetourNavigator
 {
-    using NavMeshConstPtr = std::shared_ptr<const dtNavMesh>;
-
     class NavMeshManager
     {
     public:
@@ -34,11 +35,13 @@ namespace DetourNavigator
 
         bool removeObject(std::size_t id);
 
+        void addAgent(const osg::Vec3f& agentHalfExtents);
+
         void reset(const osg::Vec3f& agentHalfExtents);
 
-        void update(const osg::Vec3f& agentHalfExtents);
+        void update(osg::Vec3f playerPosition, const osg::Vec3f& agentHalfExtents);
 
-        NavMeshConstPtr getNavMesh(const osg::Vec3f& agentHalfExtents) const;
+        SharedNavMesh getNavMesh(const osg::Vec3f& agentHalfExtents) const;
 
     private:
         std::size_t mRevision = 0;

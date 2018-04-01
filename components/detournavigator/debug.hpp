@@ -1,6 +1,7 @@
 #ifndef OPENMW_COMPONENTS_DETOURNAVIGATOR_DEBUG_H
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_DEBUG_H
 
+#include <osg/Vec2i>
 #include <osg/Vec3f>
 
 #include <iomanip>
@@ -14,6 +15,11 @@ class dtNavMesh;
 namespace DetourNavigator
 {
     class RecastMesh;
+
+    inline std::ostream& operator <<(std::ostream& stream, const osg::Vec2i& value)
+    {
+        return stream << '(' << value.x() << ", " << value.y() << ')';
+    }
 
     inline std::ostream& operator <<(std::ostream& stream, const osg::Vec3f& value)
     {
