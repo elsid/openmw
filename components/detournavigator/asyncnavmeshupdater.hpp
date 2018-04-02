@@ -33,8 +33,8 @@ namespace DetourNavigator
         ~AsyncNavMeshUpdater();
 
         void post(const osg::Vec3f& agentHalfExtents, const std::shared_ptr<RecastMesh>& recastMesh,
-                  const std::shared_ptr<NavMeshCacheItem>& mNavMeshCacheItem, const TilePosition& playerTile,
-                  const std::set<TilePosition>& changedTiles);
+                const std::shared_ptr<NavMeshCacheItem>& mNavMeshCacheItem, const TilePosition& playerTile,
+                const std::set<TilePosition>& changedTiles);
 
     private:
         struct Job
