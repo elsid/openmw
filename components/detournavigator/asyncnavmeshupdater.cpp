@@ -73,7 +73,7 @@ namespace DetourNavigator
                 const auto start = std::chrono::steady_clock::now();
                 std::string revision;
                 if (mSettings.mEnableWriteNavMeshToFile || mSettings.mEnableWriteRecastMeshToFile)
-                    revision = std::to_string(std::time(nullptr));
+                    revision = std::to_string((std::chrono::steady_clock::now() - std::chrono::steady_clock::time_point()).count());
                 if (mSettings.mEnableWriteRecastMeshToFile)
                     writeToFile(*job.mRecastMesh, mSettings.mRecastMeshPathPrefix, revision);
                 updateNavMesh(job.mAgentHalfExtents, *job.mRecastMesh, job.mChangedTile, mSettings,
