@@ -72,14 +72,23 @@ namespace DetourNavigator
                 using float_milliseconds = std::chrono::duration<float, std::milli>;
                 const auto start = std::chrono::steady_clock::now();
                 std::string revision;
-                if (mSettings.mEnableWriteNavMeshToFile || mSettings.mEnableWriteRecastMeshToFile)
-                    revision = std::to_string((std::chrono::steady_clock::now() - std::chrono::steady_clock::time_point()).count());
+                std::string recastMeshRevision;
+                std::string navMeshRevision;
+                if ((mSettings.mEnableWriteNavMeshToFile || mSettings.mEnableWriteRecastMeshToFile)
+                        && (mSettings.mEnableRecastMeshFileNameRevision || mSettings.mEnableNavMeshFileNameRevision))
+                {
+                    revision = "." + std::to_string((std::chrono::steady_clock::now() - std::chrono::steady_clock::time_point()).count());
+                    if (mSettings.mEnableRecastMeshFileNameRevision)
+                        recastMeshRevision = revision;
+                    if (mSettings.mEnableNavMeshFileNameRevision)
+                        navMeshRevision = revision;
+                }
                 if (mSettings.mEnableWriteRecastMeshToFile)
-                    writeToFile(*job.mRecastMesh, mSettings.mRecastMeshPathPrefix, revision);
+                    writeToFile(*job.mRecastMesh, mSettings.mRecastMeshPathPrefix, recastMeshRevision);
                 updateNavMesh(job.mAgentHalfExtents, *job.mRecastMesh, job.mChangedTile, mSettings,
                               job.mNavMeshCacheItem->mValue);
                 if (mSettings.mEnableWriteNavMeshToFile)
-                    writeToFile(*job.mNavMeshCacheItem->mValue.lock(), mSettings.mNavMeshPathPrefix, revision);
+                    writeToFile(*job.mNavMeshCacheItem->mValue.lock(), mSettings.mNavMeshPathPrefix, navMeshRevision);
                 const auto finish = std::chrono::steady_clock::now();
                 log("cache updated for agent=", job.mAgentHalfExtents,
                     " time=", std::chrono::duration_cast<float_milliseconds>(finish - start).count(), "ms");
