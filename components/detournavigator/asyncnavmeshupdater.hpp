@@ -40,7 +40,6 @@ namespace DetourNavigator
         struct Job
         {
             osg::Vec3f mAgentHalfExtents;
-            std::shared_ptr<RecastMesh> mRecastMesh;
             std::shared_ptr<NavMeshCacheItem> mNavMeshCacheItem;
             TilePosition mChangedTile;
             std::pair<int, int> mPriority;
@@ -58,6 +57,7 @@ namespace DetourNavigator
         std::mutex mMutex;
         std::condition_variable mHasJob;
         Jobs mJobs;
+        std::shared_ptr<RecastMesh> mRecastMesh;
         std::thread mThread;
 
         void process() throw();

@@ -44,10 +44,10 @@ namespace DetourNavigator
         const std::set<TilePosition>& changedTiles)
     {
         const std::lock_guard<std::mutex> lock(mMutex);
+        mRecastMesh = recastMesh;
         for (const auto& changedTile : changedTiles)
         {
-            mJobs.push(Job {agentHalfExtents, recastMesh, mNavMeshCacheItem, changedTile,
-                            makePriority(changedTile, playerTile)});
+            mJobs.push(Job {agentHalfExtents, mNavMeshCacheItem, changedTile, makePriority(changedTile, playerTile)});
         }
         mHasJob.notify_all();
     }
@@ -67,6 +67,7 @@ namespace DetourNavigator
                 log("got ", mJobs.size(), " jobs");
                 const auto job = mJobs.top();
                 mJobs.pop();
+                const auto recastMesh = mRecastMesh;
                 lock.unlock();
                 log("process job for agent=", job.mAgentHalfExtents);
                 using float_milliseconds = std::chrono::duration<float, std::milli>;
@@ -84,8 +85,8 @@ namespace DetourNavigator
                         navMeshRevision = revision;
                 }
                 if (mSettings.mEnableWriteRecastMeshToFile)
-                    writeToFile(*job.mRecastMesh, mSettings.mRecastMeshPathPrefix, recastMeshRevision);
-                updateNavMesh(job.mAgentHalfExtents, *job.mRecastMesh, job.mChangedTile, mSettings,
+                    writeToFile(*recastMesh, mSettings.mRecastMeshPathPrefix, recastMeshRevision);
+                updateNavMesh(job.mAgentHalfExtents, *recastMesh, job.mChangedTile, mSettings,
                               job.mNavMeshCacheItem->mValue);
                 if (mSettings.mEnableWriteNavMeshToFile)
                     writeToFile(*job.mNavMeshCacheItem->mValue.lock(), mSettings.mNavMeshPathPrefix, navMeshRevision);
