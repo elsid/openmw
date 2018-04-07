@@ -40,4 +40,14 @@ namespace DetourNavigator
         for (const auto& v : mAgents)
             mNavMeshManager.update(playerPosition, v.first);
     }
+
+    std::map<osg::Vec3f, std::shared_ptr<NavMeshCacheItem>> Navigator::getNavMeshes() const
+    {
+        return mNavMeshManager.getNavMeshes();
+    }
+
+    const Settings& Navigator::getSettings() const
+    {
+        return mSettings;
+    }
 }

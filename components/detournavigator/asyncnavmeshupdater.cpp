@@ -88,6 +88,7 @@ namespace DetourNavigator
                     writeToFile(*recastMesh, mSettings.mRecastMeshPathPrefix, recastMeshRevision);
                 updateNavMesh(job.mAgentHalfExtents, *recastMesh, job.mChangedTile, mSettings,
                               job.mNavMeshCacheItem->mValue);
+                ++job.mNavMeshCacheItem->mNavMeshRevision;
                 if (mSettings.mEnableWriteNavMeshToFile)
                     writeToFile(*job.mNavMeshCacheItem->mValue.lock(), mSettings.mNavMeshPathPrefix, navMeshRevision);
                 const auto finish = std::chrono::steady_clock::now();

@@ -163,8 +163,6 @@ namespace MWWorld
       mPlayerTraveling(false), mPlayerInJail(false), mSpellPreloadTimer(0.f)
     {
         mPhysics.reset(new MWPhysics::PhysicsSystem(resourceSystem, rootNode));
-        mRendering.reset(new MWRender::RenderingManager(viewer, rootNode, resourceSystem, workQueue, &mFallback, resourcePath));
-        mProjectileManager.reset(new ProjectileManager(mRendering->getLightRoot(), resourceSystem, mRendering.get(), mPhysics.get()));
 
         DetourNavigator::Settings navigatorSettings;
         navigatorSettings.mCellHeight = Settings::Manager::getFloat("cell height", "Navigator");
@@ -193,6 +191,8 @@ namespace MWWorld
         DetourNavigator::Log::instance().setEnabled(Settings::Manager::getBool("enable log", "Navigator"));
         mNavigator.reset(new DetourNavigator::Navigator(navigatorSettings));
 
+        mRendering.reset(new MWRender::RenderingManager(viewer, rootNode, resourceSystem, workQueue, &mFallback, resourcePath, *mNavigator));
+        mProjectileManager.reset(new ProjectileManager(mRendering->getLightRoot(), resourceSystem, mRendering.get(), mPhysics.get()));
         mRendering->preloadCommonAssets();
 
         mEsm.resize(contentFiles.size());
