@@ -19,9 +19,14 @@ if (GTEST_FOUND AND GMOCK_FOUND)
         nifloader/testbulletnifloader.cpp
 
         detournavigator/recastmeshbuilder.cpp
+        detournavigator/navigator.cpp
     )
 
     source_group(apps\\openmw_test_suite FILES openmw_test_suite.cpp ${UNITTEST_SRC_FILES})
+
+    find_package(RecastNavigation COMPONENTS DebugUtils Detour Recast REQUIRED)
+
+    include_directories(SYSTEM ${RecastNavigation_INCLUDE_DIRS})
 
     openmw_add_executable(openmw_test_suite openmw_test_suite.cpp ${UNITTEST_SRC_FILES})
 

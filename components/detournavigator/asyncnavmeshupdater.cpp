@@ -52,6 +52,12 @@ namespace DetourNavigator
         mHasJob.notify_all();
     }
 
+    void AsyncNavMeshUpdater::wait()
+    {
+        std::unique_lock<std::mutex> lock(mMutex);
+        mDone.wait(lock, [&] { return mJobs.empty(); });
+    }
+
     void AsyncNavMeshUpdater::process() throw()
     {
         log("start process jobs");
@@ -61,9 +67,15 @@ namespace DetourNavigator
             {
                 std::unique_lock<std::mutex> lock(mMutex);
                 if (mJobs.empty())
+                {
+                    mDone.notify_all();
                     mHasJob.wait_for(lock, std::chrono::milliseconds(10));
+                }
                 if (mJobs.empty())
+                {
+                    mDone.notify_all();
                     continue;
+                }
                 log("got ", mJobs.size(), " jobs");
                 const auto job = mJobs.top();
                 mJobs.pop();

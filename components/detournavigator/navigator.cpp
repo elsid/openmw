@@ -50,4 +50,9 @@ namespace DetourNavigator
     {
         return mSettings;
     }
+
+    void Navigator::wait()
+    {
+        mNavMeshManager.wait();
+    }
 }

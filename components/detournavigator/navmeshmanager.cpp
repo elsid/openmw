@@ -1,5 +1,6 @@
 #include "navmeshmanager.hpp"
 #include "debug.hpp"
+#include "exceptions.hpp"
 #include "makenavmesh.hpp"
 #include "settings.hpp"
 #include "sharednavmesh.hpp"
@@ -56,7 +57,7 @@ namespace DetourNavigator
 
     void NavMeshManager::update(osg::Vec3f playerPosition, const osg::Vec3f& agentHalfExtents)
     {
-        const auto cached = mCache.at(agentHalfExtents);
+        const auto cached = getCached(agentHalfExtents);
         if (cached->mRecastMeshRevision >= mRevision)
             return;
         cached->mRecastMeshRevision = mRevision;
@@ -76,12 +77,17 @@ namespace DetourNavigator
 
     SharedNavMesh NavMeshManager::getNavMesh(const osg::Vec3f& agentHalfExtents) const
     {
-        return mCache.at(agentHalfExtents)->mValue;
+        return getCached(agentHalfExtents)->mValue;
     }
 
     std::map<osg::Vec3f, std::shared_ptr<NavMeshCacheItem>> NavMeshManager::getNavMeshes() const
     {
         return mCache;
+    }
+
+    void NavMeshManager::wait()
+    {
+        mAsyncNavMeshUpdater.wait();
     }
 
     void NavMeshManager::addChangedTiles(const btCollisionShape& shape, const btTransform& transform)
@@ -119,5 +125,17 @@ namespace DetourNavigator
                         changedTiles.insert(TilePosition {tileX, tileY});
             }
         }
+    }
+
+    std::shared_ptr<NavMeshCacheItem> NavMeshManager::getCached(const osg::Vec3f& agentHalfExtents) const
+    {
+        const auto cached = mCache.find(agentHalfExtents);
+        if (cached == mCache.end())
+        {
+            std::ostringstream stream;
+            stream << "Agent with half extents is not found: " << agentHalfExtents;
+            throw InvalidArgument(stream.str());
+        }
+        return cached->second;
     }
 }

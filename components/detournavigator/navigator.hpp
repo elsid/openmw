@@ -36,6 +36,8 @@ namespace DetourNavigator
 
         const Settings& getSettings() const;
 
+        void wait();
+
     private:
         Settings mSettings;
         NavMeshManager mNavMeshManager;

@@ -12,6 +12,8 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
+
 namespace
 {
     using namespace testing;
