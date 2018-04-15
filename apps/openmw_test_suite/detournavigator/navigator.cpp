@@ -35,6 +35,7 @@ namespace
             mSettings.mEnableWriteNavMeshToFile = false;
             mSettings.mEnableRecastMeshFileNameRevision = false;
             mSettings.mEnableNavMeshFileNameRevision = false;
+            mSettings.mBorderSize = 16;
             mSettings.mCellHeight = 0.2f;
             mSettings.mCellSize = 0.2f;
             mSettings.mDetailSampleDist = 6;

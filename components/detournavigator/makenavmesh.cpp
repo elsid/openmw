@@ -63,8 +63,8 @@ namespace
     };
 
     NavMeshData makeNavMeshTileData(const osg::Vec3f& agentHalfExtents, const RecastMesh& recastMesh,
-            int tileX, int tileY, int tileSize, const osg::Vec3f& boundsMin, const osg::Vec3f& boundsMax,
-            const Settings& settings)
+                                    int tileX, int tileY, int tileSize, const osg::Vec3f& boundsMin,
+                                    const osg::Vec3f& boundsMax, const Settings& settings)
     {
         rcContext context;
         rcConfig config;
@@ -72,20 +72,20 @@ namespace
         config.cs = settings.mCellSize;
         config.ch = settings.mCellHeight;
         config.walkableSlopeAngle = settings.mMaxSlope;
-        config.walkableHeight = int(std::ceil(getHeight(agentHalfExtents, settings) / config.ch));
-        config.walkableClimb = int(std::floor(getMaxClimb(settings) / config.ch));
-        config.walkableRadius = int(std::ceil(getRadius(agentHalfExtents, settings) / config.cs));
-        config.maxEdgeLen = int(std::round(settings.mMaxEdgeLen / config.cs));
+        config.walkableHeight = int(std::ceil(getHeight(agentHalfExtents, settings) / settings.mCellHeight));
+        config.walkableClimb = int(std::floor(getMaxClimb(settings) / settings.mCellHeight));
+        config.walkableRadius = int(std::ceil(getRadius(agentHalfExtents, settings) / settings.mCellSize));
+        config.maxEdgeLen = int(std::round(settings.mMaxEdgeLen / settings.mCellSize));
         config.maxSimplificationError = settings.mMaxSimplificationError;
         config.minRegionArea = settings.mRegionMinSize * settings.mRegionMinSize;
         config.mergeRegionArea = settings.mRegionMergeSize * settings.mRegionMergeSize;
         config.maxVertsPerPoly = settings.mMaxVertsPerPoly;
-        config.detailSampleDist = settings.mDetailSampleDist < 0.9f ? 0 : config.cs * settings.mDetailSampleDist;
-        config.detailSampleMaxError = config.ch * settings.mDetailSampleMaxError;
+        config.detailSampleDist = settings.mDetailSampleDist < 0.9f ? 0 : settings.mCellSize * settings.mDetailSampleDist;
+        config.detailSampleMaxError = settings.mCellHeight * settings.mDetailSampleMaxError;
         config.tileSize = tileSize;
-        config.borderSize = config.walkableRadius + 3;
-        config.width = config.tileSize + config.borderSize * 2;
-        config.height = config.tileSize + config.borderSize * 2;
+        config.borderSize = settings.mBorderSize;
+        config.width = tileSize + config.borderSize * 2;
+        config.height = tileSize + config.borderSize * 2;
         rcVcopy(config.bmin, boundsMin.ptr());
         rcVcopy(config.bmax, boundsMax.ptr());
         config.bmin[0] -= config.borderSize * config.cs;
@@ -242,7 +242,8 @@ namespace DetourNavigator
     }
 
     void updateNavMesh(const osg::Vec3f& agentHalfExtents, const RecastMesh& recastMesh,
-            const TilePosition& changedTile, const Settings& settings, SharedNavMesh& navMesh)
+                        const TilePosition& changedTile, const Settings& settings,
+                        SharedNavMesh& navMesh)
     {
         log("update NavMesh with mutiple tiles:",
             " agentHeight=", std::setprecision(std::numeric_limits<float>::max_exponent10),
