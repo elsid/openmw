@@ -38,8 +38,9 @@ namespace DetourNavigator
         return stream << "unknown";
     }
 
-    AsyncNavMeshUpdater::AsyncNavMeshUpdater(const Settings& settings)
+    AsyncNavMeshUpdater::AsyncNavMeshUpdater(const Settings& settings, TileCachedRecastMeshManager& recastMeshManager)
         : mSettings(settings),
+          mRecastMeshManager(recastMeshManager),
           mShouldStop(),
           mThread([&] { process(); })
     {
@@ -55,12 +56,12 @@ namespace DetourNavigator
         mThread.join();
     }
 
-    void AsyncNavMeshUpdater::post(const osg::Vec3f& agentHalfExtents, const std::shared_ptr<RecastMesh>& recastMesh,
+    void AsyncNavMeshUpdater::post(const osg::Vec3f& agentHalfExtents,
         const std::shared_ptr<NavMeshCacheItem>& mNavMeshCacheItem, const TilePosition& playerTile,
         const std::set<TilePosition>& changedTiles)
     {
+        log("post jobs playerTile=", playerTile);
         const std::lock_guard<std::mutex> lock(mMutex);
-        mRecastMesh = recastMesh;
         for (const auto& changedTile : changedTiles)
         {
             mJobs.push(Job {agentHalfExtents, mNavMeshCacheItem, changedTile, makePriority(changedTile, playerTile)});
@@ -97,7 +98,6 @@ namespace DetourNavigator
                 log("got ", mJobs.size(), " jobs");
                 const auto job = mJobs.top();
                 mJobs.pop();
-                const auto recastMesh = mRecastMesh;
                 lock.unlock();
                 log("process job for agent=", job.mAgentHalfExtents);
                 using float_milliseconds = std::chrono::duration<float, std::milli>;
@@ -108,16 +108,19 @@ namespace DetourNavigator
                 if ((mSettings.mEnableWriteNavMeshToFile || mSettings.mEnableWriteRecastMeshToFile)
                         && (mSettings.mEnableRecastMeshFileNameRevision || mSettings.mEnableNavMeshFileNameRevision))
                 {
-                    revision = "." + std::to_string((std::chrono::steady_clock::now() - std::chrono::steady_clock::time_point()).count());
+                    revision = "." + std::to_string((std::chrono::steady_clock::now()
+                                                     - std::chrono::steady_clock::time_point()).count());
                     if (mSettings.mEnableRecastMeshFileNameRevision)
                         recastMeshRevision = revision;
                     if (mSettings.mEnableNavMeshFileNameRevision)
                         navMeshRevision = revision;
                 }
-                if (mSettings.mEnableWriteRecastMeshToFile)
-                    writeToFile(*recastMesh, mSettings.mRecastMeshPathPrefix, recastMeshRevision);
-                const auto status = updateNavMesh(job.mAgentHalfExtents, *recastMesh, job.mChangedTile, mSettings,
+                const auto recastMesh = mRecastMeshManager.getMesh(job.mChangedTile);
+                const auto status = updateNavMesh(job.mAgentHalfExtents, recastMesh, job.mChangedTile, mSettings,
                                                   *job.mNavMeshCacheItem);
+                if (recastMesh && mSettings.mEnableWriteRecastMeshToFile)
+                    writeToFile(*recastMesh, mSettings.mRecastMeshPathPrefix + std::to_string(job.mChangedTile.x())
+                                + "_" + std::to_string(job.mChangedTile.y()) + "_", recastMeshRevision);
                 if (mSettings.mEnableWriteNavMeshToFile)
                     writeToFile(*job.mNavMeshCacheItem->mValue.lock(), mSettings.mNavMeshPathPrefix, navMeshRevision);
                 const auto finish = std::chrono::steady_clock::now();

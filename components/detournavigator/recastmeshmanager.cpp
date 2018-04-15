@@ -4,9 +4,8 @@
 
 namespace DetourNavigator
 {
-    RecastMeshManager::RecastMeshManager(const Settings& settings)
-        : mSettings(settings)
-        , mMeshBuilder(settings)
+    RecastMeshManager::RecastMeshManager(const Settings& settings, const TileBounds& bounds)
+        : mMeshBuilder(settings, bounds)
     {
     }
 
@@ -33,6 +32,11 @@ namespace DetourNavigator
     {
         rebuild();
         return mMeshBuilder.create();
+    }
+
+    bool RecastMeshManager::isEmpty() const
+    {
+        return mObjects.empty();
     }
 
     void RecastMeshManager::rebuild()

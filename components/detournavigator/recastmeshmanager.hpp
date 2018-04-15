@@ -22,7 +22,7 @@ namespace DetourNavigator
             btTransform mTransform;
         };
 
-        RecastMeshManager(const Settings& settings);
+        RecastMeshManager(const Settings& settings, const TileBounds& bounds);
 
         bool addObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform);
 
@@ -30,8 +30,9 @@ namespace DetourNavigator
 
         std::shared_ptr<RecastMesh> getMesh();
 
+        bool isEmpty() const;
+
     private:
-        const Settings& mSettings;
         bool mShouldRebuild = false;
         RecastMeshBuilder mMeshBuilder;
         std::unordered_map<std::size_t, Object> mObjects;

@@ -2,6 +2,8 @@
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_SETTINGSUTILS_H
 
 #include "settings.hpp"
+#include "tilebounds.hpp"
+#include "tileposition.hpp"
 
 #include <osg/Vec3f>
 
@@ -34,6 +36,20 @@ namespace DetourNavigator
         position *= factor;
         std::swap(position.y(), position.z());
         return position;
+    }
+
+    inline float getCellSize(const Settings& settings)
+    {
+        return settings.mTileSize * settings.mCellSize;
+    }
+
+    inline TileBounds makeTileBounds(const TilePosition& tilePosition, const Settings& settings)
+    {
+        const auto tileCellSize = getCellSize(settings);
+        return TileBounds {
+            osg::Vec2f(tilePosition.x() * tileCellSize, tilePosition.y() * tileCellSize),
+            osg::Vec2f((tilePosition.x() + 1) * tileCellSize, (tilePosition.y() + 1) * tileCellSize)
+        };
     }
 }
 

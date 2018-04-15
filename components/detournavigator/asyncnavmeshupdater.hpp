@@ -2,7 +2,7 @@
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_ASYNCNAVMESHUPDATER_H
 
 #include "navmeshcacheitem.hpp"
-#include "recastmesh.hpp"
+#include "tilecachedrecastmeshmanager.hpp"
 #include "tileposition.hpp"
 
 #include <osg/Vec3f>
@@ -25,12 +25,11 @@ namespace DetourNavigator
     class AsyncNavMeshUpdater
     {
     public:
-        AsyncNavMeshUpdater(const Settings& settings);
+        AsyncNavMeshUpdater(const Settings& settings, TileCachedRecastMeshManager& recastMeshManager);
         ~AsyncNavMeshUpdater();
 
-        void post(const osg::Vec3f& agentHalfExtents, const std::shared_ptr<RecastMesh>& recastMesh,
-                  const std::shared_ptr<NavMeshCacheItem>& mNavMeshCacheItem, const TilePosition& playerTile,
-                  const std::set<TilePosition>& changedTiles);
+        void post(const osg::Vec3f& agentHalfExtents, const std::shared_ptr<NavMeshCacheItem>& mNavMeshCacheItem,
+                  const TilePosition& playerTile, const std::set<TilePosition>& changedTiles);
 
         void wait();
 
@@ -51,12 +50,12 @@ namespace DetourNavigator
         using Jobs = std::priority_queue<Job, std::deque<Job>>;
 
         const Settings& mSettings;
+        TileCachedRecastMeshManager& mRecastMeshManager;
         std::atomic_bool mShouldStop;
         std::mutex mMutex;
         std::condition_variable mHasJob;
         std::condition_variable mDone;
         Jobs mJobs;
-        std::shared_ptr<RecastMesh> mRecastMesh;
         boost::optional<std::chrono::steady_clock::time_point> mStart;
         std::thread mThread;
 

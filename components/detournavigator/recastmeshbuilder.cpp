@@ -17,9 +17,13 @@ namespace DetourNavigator
 {
     using BulletHelpers::makeProcessTriangleCallback;
 
-    RecastMeshBuilder::RecastMeshBuilder(const Settings& settings)
+    RecastMeshBuilder::RecastMeshBuilder(const Settings& settings, const TileBounds& bounds)
         : mSettings(settings)
-    {}
+        , mBounds(bounds)
+    {
+        mBounds.mMin /= mSettings.mRecastScaleFactor;
+        mBounds.mMax /= mSettings.mRecastScaleFactor;
+    }
 
     bool RecastMeshBuilder::addObject(const btCollisionShape& shape, const btTransform& transform)
     {
@@ -57,7 +61,7 @@ namespace DetourNavigator
 
     void RecastMeshBuilder::addObject(const btConcaveShape& shape, const btTransform& transform)
     {
-        return addObject(shape, makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
+        return addObject(shape, transform, makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
         {
             for (std::size_t i = 3; i > 0; --i)
                 addTriangleVertex(transform(triangle[i - 1]) * mSettings.mRecastScaleFactor);
@@ -66,7 +70,7 @@ namespace DetourNavigator
 
     void RecastMeshBuilder::addObject(const btHeightfieldTerrainShape& shape, const btTransform& transform)
     {
-        return addObject(shape, makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
+        return addObject(shape, transform, makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
         {
             for (std::size_t i = 0; i < 3; ++i)
                 addTriangleVertex(transform(triangle[i]) * mSettings.mRecastScaleFactor);
@@ -114,11 +118,29 @@ namespace DetourNavigator
         mVertices.clear();
     }
 
-    void RecastMeshBuilder::addObject(const btConcaveShape& shape, btTriangleCallback&& callback)
+    void RecastMeshBuilder::addObject(const btConcaveShape& shape, const btTransform& transform,
+                                      btTriangleCallback&& callback)
     {
         btVector3 aabbMin;
         btVector3 aabbMax;
         shape.getAabb(btTransform::getIdentity(), aabbMin, aabbMax);
+        const btVector3 boundsMinMin(mBounds.mMin.x(), mBounds.mMin.y(), 0);
+        const btVector3 boundsMinMax(mBounds.mMin.x(), mBounds.mMax.y(), 0);
+        const btVector3 boundsMaxMin(mBounds.mMax.x(), mBounds.mMin.y(), 0);
+        const btVector3 boundsMaxMax(mBounds.mMax.x(), mBounds.mMax.y(), 0);
+        const auto inversedTransform = transform.inverse();
+        const auto localBoundsMinMin = inversedTransform(boundsMinMin);
+        const auto localBoundsMinMax = inversedTransform(boundsMinMax);
+        const auto localBoundsMaxMin = inversedTransform(boundsMaxMin);
+        const auto localBoundsMaxMax = inversedTransform(boundsMaxMax);
+        aabbMin.setX(std::min({localBoundsMinMin.x(), localBoundsMinMax.x(),
+                               localBoundsMaxMin.x(), localBoundsMaxMax.x()}));
+        aabbMin.setY(std::min({localBoundsMinMin.y(), localBoundsMinMax.y(),
+                               localBoundsMaxMin.y(), localBoundsMaxMax.y()}));
+        aabbMax.setX(std::max({localBoundsMinMin.x(), localBoundsMinMax.x(),
+                               localBoundsMaxMin.x(), localBoundsMaxMax.x()}));
+        aabbMax.setY(std::max({localBoundsMinMin.y(), localBoundsMinMax.y(),
+                               localBoundsMaxMin.y(), localBoundsMaxMax.y()}));
         shape.processAllTriangles(&callback, aabbMin, aabbMax);
     }
 

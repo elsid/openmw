@@ -7,6 +7,7 @@
 
 #include <osg/Vec2i>
 #include <osg/Vec3f>
+#include <osg/Vec2i>
 
 #include <atomic>
 #include <fstream>
@@ -28,7 +29,22 @@ namespace DetourNavigator
         return stream << '(' << value.x() << ", " << value.y() << ')';
     }
 
+    inline std::ostream& operator <<(std::ostream& stream, const osg::Vec2f& value)
+    {
+        return stream << '(' << std::setprecision(std::numeric_limits<float>::max_exponent10) << value.x()
+                      << ", " << std::setprecision(std::numeric_limits<float>::max_exponent10) << value.y()
+                      << ')';
+    }
+
     inline std::ostream& operator <<(std::ostream& stream, const osg::Vec3f& value)
+    {
+        return stream << '(' << std::setprecision(std::numeric_limits<float>::max_exponent10) << value.x()
+                      << ", " << std::setprecision(std::numeric_limits<float>::max_exponent10) << value.y()
+                      << ", " << std::setprecision(std::numeric_limits<float>::max_exponent10) << value.z()
+                      << ')';
+    }
+
+    inline std::ostream& operator <<(std::ostream& stream, const btVector3& value)
     {
         return stream << '(' << std::setprecision(std::numeric_limits<float>::max_exponent10) << value.x()
                       << ", " << std::setprecision(std::numeric_limits<float>::max_exponent10) << value.y()
