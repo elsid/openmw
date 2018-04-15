@@ -39,7 +39,7 @@ namespace DetourNavigator
     {
         if (mShouldRebuild)
         {
-            mMeshBuilder = RecastMeshBuilder(mSettings);
+            mMeshBuilder.reset();
             for (const auto& v : mObjects)
                 mMeshBuilder.addObject(*v.second.mShape, v.second.mTransform);
             mShouldRebuild = false;

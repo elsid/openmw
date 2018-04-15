@@ -18,7 +18,7 @@ namespace DetourNavigator
     using BulletHelpers::makeProcessTriangleCallback;
 
     RecastMeshBuilder::RecastMeshBuilder(const Settings& settings)
-        : mSettings(&settings)
+        : mSettings(settings)
     {}
 
     bool RecastMeshBuilder::addObject(const btCollisionShape& shape, const btTransform& transform)
@@ -60,7 +60,7 @@ namespace DetourNavigator
         return addObject(shape, makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
         {
             for (std::size_t i = 3; i > 0; --i)
-                addTriangleVertex(transform(triangle[i - 1]) * mSettings->mRecastScaleFactor);
+                addTriangleVertex(transform(triangle[i - 1]) * mSettings.mRecastScaleFactor);
         }));
     }
 
@@ -69,7 +69,7 @@ namespace DetourNavigator
         return addObject(shape, makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
         {
             for (std::size_t i = 0; i < 3; ++i)
-                addTriangleVertex(transform(triangle[i]) * mSettings->mRecastScaleFactor);
+                addTriangleVertex(transform(triangle[i]) * mSettings.mRecastScaleFactor);
         }));
     }
 
@@ -81,7 +81,7 @@ namespace DetourNavigator
         {
             btVector3 position;
             shape.getVertex(vertex, position);
-            addVertex(transform(position) * mSettings->mRecastScaleFactor);
+            addVertex(transform(position) * mSettings.mRecastScaleFactor);
         }
 
         static const std::array<int, 36> indices {{
@@ -105,7 +105,13 @@ namespace DetourNavigator
 
     std::shared_ptr<RecastMesh> RecastMeshBuilder::create() const
     {
-        return std::make_shared<RecastMesh>(mIndices, mVertices, *mSettings);
+        return std::make_shared<RecastMesh>(mIndices, mVertices, mSettings);
+    }
+
+    void RecastMeshBuilder::reset()
+    {
+        mIndices.clear();
+        mVertices.clear();
     }
 
     void RecastMeshBuilder::addObject(const btConcaveShape& shape, btTriangleCallback&& callback)

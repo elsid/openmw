@@ -33,8 +33,10 @@ namespace DetourNavigator
 
         std::shared_ptr<RecastMesh> create() const;
 
+        void reset();
+
     private:
-        const Settings* mSettings;
+        const Settings& mSettings;
         std::vector<int> mIndices;
         std::vector<float> mVertices;
 
