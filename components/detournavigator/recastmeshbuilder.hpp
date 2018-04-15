@@ -3,6 +3,8 @@
 
 #include "recastmesh.hpp"
 
+#include <osg/Vec2f>
+
 class btBoxShape;
 class btCollisionShape;
 class btCompoundShape;

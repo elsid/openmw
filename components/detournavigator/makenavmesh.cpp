@@ -232,6 +232,26 @@ namespace
                 ++mNavMeshRevision;
         }
     };
+
+    float getCellSize(const Settings& settings)
+    {
+        return settings.mTileSize * settings.mCellSize;
+    }
+
+    struct TileBounds
+    {
+        osg::Vec2f mMin;
+        osg::Vec2f mMax;
+    };
+
+    TileBounds makeTileBounds(const TilePosition& tilePosition, const Settings& settings)
+    {
+        const auto tileCellSize = getCellSize(settings);
+        return TileBounds {
+            osg::Vec2f(tilePosition.x() * tileCellSize, tilePosition.y() * tileCellSize),
+            osg::Vec2f((tilePosition.x() + 1) * tileCellSize, (tilePosition.y() + 1) * tileCellSize)
+        };
+    }
 }
 
 namespace DetourNavigator
@@ -259,7 +279,8 @@ namespace DetourNavigator
     }
 
     void updateNavMesh(const osg::Vec3f& agentHalfExtents, const RecastMesh& recastMesh,
-            const TilePosition& changedTile, const Settings& settings, NavMeshCacheItem& navMeshCacheItem)
+                        const TilePosition& changedTile, const Settings& settings,
+                        NavMeshCacheItem& navMeshCacheItem)
     {
         log("update NavMesh with mutiple tiles:",
             " agentHeight=", std::setprecision(std::numeric_limits<float>::max_exponent10),
@@ -273,16 +294,7 @@ namespace DetourNavigator
         const auto& boundsMin = recastMesh.getBoundsMin();
         const auto& boundsMax = recastMesh.getBoundsMax();
 
-        int gridWidth;
-        int gridHeight;
-        rcCalcGridSize(boundsMin.ptr(), boundsMax.ptr(), settings.mCellSize, &gridWidth, &gridHeight);
-        const auto tileSize = int(settings.mTileSize);
-        const auto tileCellSize = settings.mTileSize * settings.mCellSize;
-
         auto& navMesh = navMeshCacheItem.mValue;
-        const auto& params = *navMesh.lock()->getParams();
-        const osg::Vec3f origin(params.orig[0], params.orig[1], params.orig[2]);
-
         const auto x = changedTile.x();
         const auto y = changedTile.y();
         AutoIncrementRevision incRev(navMeshCacheItem.mNavMeshRevision);
@@ -293,13 +305,13 @@ namespace DetourNavigator
                                                                         nullptr, nullptr));
         }
 
-        const osg::Vec3f tileBorderMin(origin.x() + x * tileCellSize, boundsMin.y(),
-                                       origin.z() + y * tileCellSize);
-        const osg::Vec3f tileBorderMax(origin.x() + (x + 1) * tileCellSize, boundsMax.y(),
-                                       origin.z() + (y + 1) * tileCellSize);
+        const auto tileSize = int(settings.mTileSize);
+        const auto tileBounds = makeTileBounds(changedTile, settings);
+        const osg::Vec3f tileBorderMin(tileBounds.mMin.x(), boundsMin.y(), tileBounds.mMin.y());
+        const osg::Vec3f tileBorderMax(tileBounds.mMax.x(), boundsMax.y(), tileBounds.mMax.y());
 
         auto navMeshData = makeNavMeshTileData(agentHalfExtents, recastMesh, x, y, tileSize,
-                                               tileBorderMin, tileBorderMax, settings);
+                                                tileBorderMin, tileBorderMax, settings);
 
         if (!navMeshData.mValue)
         {
