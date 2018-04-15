@@ -12,6 +12,7 @@ namespace DetourNavigator
         , mSettings(settings)
         , mChunkyTriMesh(new ChunkyTriMesh(mVertices, mIndices, mSettings.mTrianglesPerChunk))
     {
-        rcCalcBounds(mVertices.data(), int(getVerticesCount()), mBoundsMin.ptr(), mBoundsMax.ptr());
+        if (getVerticesCount())
+            rcCalcBounds(mVertices.data(), int(getVerticesCount()), mBoundsMin.ptr(), mBoundsMax.ptr());
     }
 }

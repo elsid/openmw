@@ -279,8 +279,7 @@ namespace DetourNavigator
     }
 
     void updateNavMesh(const osg::Vec3f& agentHalfExtents, const RecastMesh& recastMesh,
-                        const TilePosition& changedTile, const Settings& settings,
-                        NavMeshCacheItem& navMeshCacheItem)
+            const TilePosition& changedTile, const Settings& settings, NavMeshCacheItem& navMeshCacheItem)
     {
         log("update NavMesh with mutiple tiles:",
             " agentHeight=", std::setprecision(std::numeric_limits<float>::max_exponent10),
@@ -290,9 +289,6 @@ namespace DetourNavigator
             " agentRadius=", std::setprecision(std::numeric_limits<float>::max_exponent10),
             getRadius(agentHalfExtents, settings),
             " changedTile=", changedTile);
-
-        const auto& boundsMin = recastMesh.getBoundsMin();
-        const auto& boundsMax = recastMesh.getBoundsMax();
 
         auto& navMesh = navMeshCacheItem.mValue;
         const auto x = changedTile.x();
@@ -305,6 +301,15 @@ namespace DetourNavigator
                                                                         nullptr, nullptr));
         }
 
+        const auto& boundsMin = recastMesh.getBoundsMin();
+        const auto& boundsMax = recastMesh.getBoundsMax();
+
+        if (boundsMin == boundsMax)
+        {
+            log("ignore add tile: recastMesh is empty");
+            return;
+        }
+
         const auto tileSize = int(settings.mTileSize);
         const auto tileBounds = makeTileBounds(changedTile, settings);
         const osg::Vec3f tileBorderMin(tileBounds.mMin.x(), boundsMin.y(), tileBounds.mMin.y());
@@ -315,7 +320,7 @@ namespace DetourNavigator
 
         if (!navMeshData.mValue)
         {
-            OD_DEBUG_LOG << "Ignore add tile: NavMeshData is null\n";
+            log("ignore add tile: NavMeshData is null");
             return;
         }
 
@@ -324,7 +329,7 @@ namespace DetourNavigator
         if (dtStatusSucceed(status))
             incRev.mNavMeshChanged = true;
         else
-            OD_DEBUG_LOG << "Failed to add tile with status=" << WriteDtStatus {status};
+            log("failed to add tile with status=", WriteDtStatus {status});
         navMeshData.mValue.release();
-    }
+}
 }
