@@ -1,6 +1,8 @@
 #ifndef OPENMW_COMPONENTS_DETOURNAVIGATOR_DEBUG_H
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_DEBUG_H
 
+#include <DetourStatus.h>
+
 #include <BulletCollision/BroadphaseCollision/btBroadphaseProxy.h>
 
 #include <osg/Vec2i>

@@ -1,5 +1,6 @@
 #include "dtstatus.hpp"
 #include "exceptions.hpp"
+#include "debug.hpp"
 
 #include <sstream>
 #include <vector>
