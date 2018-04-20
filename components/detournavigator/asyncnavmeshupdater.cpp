@@ -92,6 +92,8 @@ namespace DetourNavigator
                     mDone.notify_all();
                     continue;
                 }
+                if (!mStart)
+                    mStart = std::chrono::steady_clock::now();
                 log("got ", mJobs.size(), " jobs");
                 const auto job = mJobs.top();
                 mJobs.pop();
@@ -120,7 +122,8 @@ namespace DetourNavigator
                     writeToFile(*job.mNavMeshCacheItem->mValue.lock(), mSettings.mNavMeshPathPrefix, navMeshRevision);
                 const auto finish = std::chrono::steady_clock::now();
                 log("cache updated for agent=", job.mAgentHalfExtents, " status=", status,
-                    " time=", std::chrono::duration_cast<float_milliseconds>(finish - start).count(), "ms");
+                    " time=", std::chrono::duration_cast<float_milliseconds>(finish - start).count(), "ms",
+                    " total_time=", std::chrono::duration_cast<float_milliseconds>(finish - *mStart).count(), "ms");
             }
             catch (const std::exception& e)
             {

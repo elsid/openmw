@@ -7,9 +7,11 @@
 
 #include <osg/Vec3f>
 
+#include <boost/optional.hpp>
+
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <queue>
@@ -55,6 +57,7 @@ namespace DetourNavigator
         std::condition_variable mDone;
         Jobs mJobs;
         std::shared_ptr<RecastMesh> mRecastMesh;
+        boost::optional<std::chrono::steady_clock::time_point> mStart;
         std::thread mThread;
 
         void process() throw();
