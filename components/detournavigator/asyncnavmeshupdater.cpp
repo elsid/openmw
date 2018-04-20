@@ -62,9 +62,12 @@ namespace DetourNavigator
     {
         log("post jobs playerTile=", playerTile);
         const std::lock_guard<std::mutex> lock(mMutex);
+        mPlayerTile = playerTile;
         for (const auto& changedTile : changedTiles)
         {
-            mJobs.push(Job {agentHalfExtents, mNavMeshCacheItem, changedTile, makePriority(changedTile, playerTile)});
+            if (mPushed[agentHalfExtents].insert(changedTile).second)
+                mJobs.push(Job {agentHalfExtents, mNavMeshCacheItem, changedTile,
+                                makePriority(changedTile, playerTile)});
         }
         mHasJob.notify_all();
     }
@@ -98,6 +101,11 @@ namespace DetourNavigator
                 log("got ", mJobs.size(), " jobs");
                 const auto job = mJobs.top();
                 mJobs.pop();
+                const auto pushed = mPushed.find(job.mAgentHalfExtents);
+                pushed->second.erase(job.mChangedTile);
+                if (pushed->second.empty())
+                    mPushed.erase(pushed);
+                const auto playerTile = mPlayerTile;
                 lock.unlock();
                 log("process job for agent=", job.mAgentHalfExtents);
                 using float_milliseconds = std::chrono::duration<float, std::milli>;
@@ -116,8 +124,8 @@ namespace DetourNavigator
                         navMeshRevision = revision;
                 }
                 const auto recastMesh = mRecastMeshManager.getMesh(job.mChangedTile);
-                const auto status = updateNavMesh(job.mAgentHalfExtents, recastMesh, job.mChangedTile, mSettings,
-                                                  *job.mNavMeshCacheItem);
+                const auto status = updateNavMesh(job.mAgentHalfExtents, recastMesh, job.mChangedTile, playerTile,
+                                                  mSettings, *job.mNavMeshCacheItem);
                 if (recastMesh && mSettings.mEnableWriteRecastMeshToFile)
                     writeToFile(*recastMesh, mSettings.mRecastMeshPathPrefix + std::to_string(job.mChangedTile.x())
                                 + "_" + std::to_string(job.mChangedTile.y()) + "_", recastMeshRevision);
@@ -128,7 +136,9 @@ namespace DetourNavigator
                     " generation=", job.mNavMeshCacheItem->mGeneration,
                     " revision=", job.mNavMeshCacheItem->mNavMeshRevision,
                     " time=", std::chrono::duration_cast<float_milliseconds>(finish - start).count(), "ms",
-                    " total_time=", std::chrono::duration_cast<float_milliseconds>(finish - *mStart).count(), "ms");
+                    " total_time=", std::chrono::duration_cast<float_milliseconds>(finish - *mStart).count(), "ms",
+                    " changedTile=", job.mChangedTile,
+                    " playerTile=", mPlayerTile);
             }
             catch (const std::exception& e)
             {

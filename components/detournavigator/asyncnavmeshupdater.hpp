@@ -56,7 +56,9 @@ namespace DetourNavigator
         std::condition_variable mHasJob;
         std::condition_variable mDone;
         Jobs mJobs;
+        std::map<osg::Vec3f, std::set<TilePosition>> mPushed;
         boost::optional<std::chrono::steady_clock::time_point> mStart;
+        TilePosition mPlayerTile;
         std::thread mThread;
 
         void process() throw();

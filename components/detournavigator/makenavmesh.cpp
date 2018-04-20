@@ -272,8 +272,8 @@ namespace DetourNavigator
     }
 
     UpdateNavMeshStatus updateNavMesh(const osg::Vec3f& agentHalfExtents,
-            const std::shared_ptr<RecastMesh>& recastMesh, const TilePosition& changedTile, const Settings& settings,
-            NavMeshCacheItem& navMeshCacheItem)
+            const std::shared_ptr<RecastMesh>& recastMesh, const TilePosition& changedTile,
+            const TilePosition& playerTile, const Settings& settings, NavMeshCacheItem& navMeshCacheItem)
     {
         log("update NavMesh with mutiple tiles:",
             " agentHeight=", std::setprecision(std::numeric_limits<float>::max_exponent10),
@@ -282,7 +282,9 @@ namespace DetourNavigator
             getMaxClimb(settings),
             " agentRadius=", std::setprecision(std::numeric_limits<float>::max_exponent10),
             getRadius(agentHalfExtents, settings),
-            " changedTile=", changedTile);
+            " changedTile=", changedTile,
+            " playerTile=", playerTile,
+            " changedTileDistance=", getDistance(changedTile, playerTile));
 
         auto& navMesh = navMeshCacheItem.mValue;
         const auto x = changedTile.x();
@@ -309,6 +311,13 @@ namespace DetourNavigator
         if (boundsMin == boundsMax)
         {
             log("ignore add tile: recastMesh is empty");
+            return makeUpdateNavMeshStatus(removed, false);
+        }
+
+        const auto maxTiles = navMesh.lock()->getParams()->maxTiles;
+        if (!shouldAddTile(changedTile, playerTile, maxTiles))
+        {
+            log("ignore add tile: too far from player");
             return makeUpdateNavMeshStatus(removed, false);
         }
 

@@ -3,8 +3,9 @@
 
 #include "settings.hpp"
 #include "tilebounds.hpp"
-#include "tileposition.hpp"
 
+#include <osg/Vec2f>
+#include <osg/Vec2i>
 #include <osg/Vec3f>
 
 namespace DetourNavigator
@@ -41,6 +42,21 @@ namespace DetourNavigator
     inline float getCellSize(const Settings& settings)
     {
         return settings.mTileSize * settings.mCellSize;
+    }
+
+    inline float getTileWidth(const Settings& settings)
+    {
+        return settings.mTileSize * settings.mCellSize;
+    }
+
+    using TilePosition = osg::Vec2i;
+
+    inline TilePosition getTilePosition(const osg::Vec3f& position, const Settings& settings)
+    {
+        return TilePosition {
+            int(std::floor(position.x() / getTileWidth(settings))),
+            int(std::floor(position.z() / getTileWidth(settings)))
+        };
     }
 
     inline TileBounds makeTileBounds(const TilePosition& tilePosition, const Settings& settings)

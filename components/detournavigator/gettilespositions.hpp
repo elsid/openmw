@@ -1,39 +1,15 @@
 #ifndef OPENMW_COMPONENTS_DETOURNAVIGATOR_GETTILESPOSITIONS_H
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_GETTILESPOSITIONS_H
 
-#include "tileposition.hpp"
-#include "settings.hpp"
 #include "settingsutils.hpp"
 
 #include <BulletCollision/CollisionShapes/btCollisionShape.h>
 
-#include <osg/Vec3f>
-
-#include <vector>
-
 namespace DetourNavigator
 {
-    inline float getTileWidth(const Settings& settings)
-    {
-        return settings.mTileSize * settings.mCellSize;
-    }
-
-    inline float getTileHeight(const Settings& settings)
-    {
-        return settings.mTileSize * settings.mCellHeight;
-    }
-
-    inline TilePosition getTilePosition(const osg::Vec3f& position, const Settings& settings)
-    {
-        return TilePosition {
-            int(std::floor(position.x() / getTileWidth(settings))),
-            int(std::floor(position.z() / getTileHeight(settings)))
-        };
-    }
-
     template <class Callback>
     void getTilesPositions(const btCollisionShape& shape, const btTransform& transform,
-                           const Settings& settings, Callback&& callback)
+            const Settings& settings, Callback&& callback)
     {
         btVector3 aabbMin;
         btVector3 aabbMax;
