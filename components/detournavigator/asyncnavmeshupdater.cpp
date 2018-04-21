@@ -22,6 +22,22 @@ namespace
 
 namespace DetourNavigator
 {
+    static std::ostream& operator <<(std::ostream& stream, UpdateNavMeshStatus value)
+    {
+        switch (value)
+        {
+            case UpdateNavMeshStatus::ignore:
+                return stream << "ignore";
+            case UpdateNavMeshStatus::removed:
+                return stream << "removed";
+            case UpdateNavMeshStatus::add:
+                return stream << "add";
+            case UpdateNavMeshStatus::replaced:
+                return stream << "replaced";
+        }
+        return stream << "unknown";
+    }
+
     AsyncNavMeshUpdater::AsyncNavMeshUpdater(const Settings& settings)
         : mSettings(settings),
           mShouldStop(),
@@ -98,11 +114,12 @@ namespace DetourNavigator
                 }
                 if (mSettings.mEnableWriteRecastMeshToFile)
                     writeToFile(*recastMesh, mSettings.mRecastMeshPathPrefix, recastMeshRevision);
-                updateNavMesh(job.mAgentHalfExtents, *recastMesh, job.mChangedTile, mSettings, *job.mNavMeshCacheItem);
+                const auto status = updateNavMesh(job.mAgentHalfExtents, *recastMesh, job.mChangedTile, mSettings,
+                                                  *job.mNavMeshCacheItem);
                 if (mSettings.mEnableWriteNavMeshToFile)
                     writeToFile(*job.mNavMeshCacheItem->mValue.lock(), mSettings.mNavMeshPathPrefix, navMeshRevision);
                 const auto finish = std::chrono::steady_clock::now();
-                log("cache updated for agent=", job.mAgentHalfExtents,
+                log("cache updated for agent=", job.mAgentHalfExtents, " status=", status,
                     " time=", std::chrono::duration_cast<float_milliseconds>(finish - start).count(), "ms");
             }
             catch (const std::exception& e)
