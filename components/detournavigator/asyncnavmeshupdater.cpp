@@ -122,6 +122,8 @@ namespace DetourNavigator
                     writeToFile(*job.mNavMeshCacheItem->mValue.lock(), mSettings.mNavMeshPathPrefix, navMeshRevision);
                 const auto finish = std::chrono::steady_clock::now();
                 log("cache updated for agent=", job.mAgentHalfExtents, " status=", status,
+                    " generation=", job.mNavMeshCacheItem->mGeneration,
+                    " revision=", job.mNavMeshCacheItem->mNavMeshRevision,
                     " time=", std::chrono::duration_cast<float_milliseconds>(finish - start).count(), "ms",
                     " total_time=", std::chrono::duration_cast<float_milliseconds>(finish - *mStart).count(), "ms");
             }

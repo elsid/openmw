@@ -46,6 +46,7 @@ namespace DetourNavigator
         std::map<osg::Vec3f, std::shared_ptr<NavMeshCacheItem>> mCache;
         std::map<osg::Vec3f, std::set<TilePosition>> mChangedTiles;
         AsyncNavMeshUpdater mAsyncNavMeshUpdater;
+        std::size_t mGenerationCounter = 0;
 
         std::shared_ptr<NavMeshCacheItem> getCached(const osg::Vec3f& agentHalfExtents) const;
 
