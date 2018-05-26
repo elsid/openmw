@@ -26,6 +26,8 @@ namespace DetourNavigator
 
         bool addObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform);
 
+        bool updateObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform);
+
         boost::optional<Object> removeObject(std::size_t id);
 
         std::shared_ptr<RecastMesh> getMesh();

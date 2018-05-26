@@ -16,6 +16,14 @@ namespace DetourNavigator
         return true;
     }
 
+    bool CachedRecastMeshManager::updateObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform)
+    {
+        if (!mImpl.updateObject(id, shape, transform))
+            return false;
+        mCached.reset();
+        return true;
+    }
+
     boost::optional<RecastMeshManager::Object> CachedRecastMeshManager::removeObject(std::size_t id)
     {
         const auto object = mImpl.removeObject(id);

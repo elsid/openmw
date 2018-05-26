@@ -10,6 +10,7 @@
 #include <osg/Vec2i>
 
 #include <atomic>
+#include <chrono>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -102,6 +103,13 @@ namespace DetourNavigator
         }
     }
 
+    inline std::ostream& operator <<(std::ostream& stream, const std::chrono::steady_clock::time_point& value)
+    {
+        using float_s = std::chrono::duration<float, std::ratio<1>>;
+        return stream << std::fixed << std::setprecision(4)
+                      << std::chrono::duration_cast<float_s>(value.time_since_epoch()).count();
+    }
+
     class Log
     {
     public:
@@ -165,6 +173,7 @@ namespace DetourNavigator
         if (!log.isEnabled())
             return;
         std::ostringstream stream;
+        stream << '[' << std::chrono::steady_clock::now() << "] ";
         write(stream, std::forward<Ts>(values) ...);
         log.write(stream.str());
     }

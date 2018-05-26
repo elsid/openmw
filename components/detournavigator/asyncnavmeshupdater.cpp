@@ -69,6 +69,7 @@ namespace DetourNavigator
                 mJobs.push(Job {agentHalfExtents, mNavMeshCacheItem, changedTile,
                                 makePriority(changedTile, playerTile)});
         }
+        log("posted ", mJobs.size(), " jobs");
         mHasJob.notify_all();
     }
 
@@ -138,7 +139,8 @@ namespace DetourNavigator
                     " time=", std::chrono::duration_cast<float_milliseconds>(finish - start).count(), "ms",
                     " total_time=", std::chrono::duration_cast<float_milliseconds>(finish - *mStart).count(), "ms",
                     " changedTile=", job.mChangedTile,
-                    " playerTile=", mPlayerTile);
+                    " playerTile=", mPlayerTile,
+                    " jobsDone=", ++mJobsDone);
             }
             catch (const std::exception& e)
             {

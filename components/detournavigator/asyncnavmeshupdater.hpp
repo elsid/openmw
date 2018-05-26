@@ -59,6 +59,7 @@ namespace DetourNavigator
         std::map<osg::Vec3f, std::set<TilePosition>> mPushed;
         boost::optional<std::chrono::steady_clock::time_point> mStart;
         TilePosition mPlayerTile;
+        std::atomic_size_t mJobsDone;
         std::thread mThread;
 
         void process() throw();
