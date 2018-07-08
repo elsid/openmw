@@ -64,8 +64,8 @@ namespace
     };
 
     NavMeshData makeNavMeshTileData(const osg::Vec3f& agentHalfExtents, const RecastMesh& recastMesh,
-                                    int tileX, int tileY, int tileSize, const osg::Vec3f& boundsMin,
-                                    const osg::Vec3f& boundsMax, const Settings& settings)
+                                        int tileX, int tileY, int tileSize, const osg::Vec3f& boundsMin,
+                                        const osg::Vec3f& boundsMax, const Settings& settings)
     {
         rcContext context;
         rcConfig config;
@@ -100,7 +100,7 @@ namespace
 
         {
             const auto& chunkyMesh = recastMesh.getChunkyTriMesh();
-            std::vector<unsigned char> areas(chunkyMesh.getMaxTrisPerChunk(), 0);
+            std::vector<unsigned char> areas(chunkyMesh.getMaxTrisPerChunk(), RC_NULL_AREA);
             const osg::Vec2f tileBoundsMin(config.bmin[0], config.bmin[2]);
             const osg::Vec2f tileBoundsMax(config.bmax[0], config.bmax[2]);
             std::vector<std::size_t> cids;
@@ -117,7 +117,7 @@ namespace
                     areas.begin(),
                     std::min(areas.begin() + static_cast<std::ptrdiff_t>(chunk.mSize),
                     areas.end()),
-                    0
+                    RC_NULL_AREA
                 );
 
                 rcMarkWalkableTriangles(
