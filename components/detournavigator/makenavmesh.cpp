@@ -64,8 +64,8 @@ namespace
     };
 
     NavMeshData makeNavMeshTileData(const osg::Vec3f& agentHalfExtents, const RecastMesh& recastMesh,
-                                        int tileX, int tileY, int tileSize, const osg::Vec3f& boundsMin,
-                                        const osg::Vec3f& boundsMax, const Settings& settings)
+            int tileX, int tileY, int tileSize, const osg::Vec3f& boundsMin, const osg::Vec3f& boundsMax,
+            const Settings& settings)
     {
         rcContext context;
         rcConfig config;
@@ -129,6 +129,9 @@ namespace
                     static_cast<int>(chunk.mSize),
                     areas.data()
                 );
+
+                for (std::size_t i = 0; i < chunk.mSize; ++i)
+                    areas[i] &= chunk.mFlags[i];
 
                 OPENMW_CHECK_DT_RESULT(rcRasterizeTriangles(
                     &context,

@@ -8,12 +8,12 @@ namespace DetourNavigator
 {
     RecastMeshManager::RecastMeshManager(const Settings& settings, const TileBounds& bounds)
         : mMeshBuilder(settings, bounds)
-    {
-    }
+    {}
 
-    bool RecastMeshManager::addObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform)
+    bool RecastMeshManager::addObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform,
+                                      const unsigned char flags)
     {
-        if (!mObjects.insert(std::make_pair(id, Object {&shape, transform})).second)
+        if (!mObjects.insert(std::make_pair(id, Object {&shape, transform, flags})).second)
             return false;
         if (shape.isCompound())
         {
@@ -21,17 +21,18 @@ namespace DetourNavigator
             bool result = false;
             for (int i = 0, num = compound.getNumChildShapes(); i < num; ++i)
                 result = addObject(std::size_t(compound.getChildShape(i)), *compound.getChildShape(i),
-                                   compound.getChildTransform(i)) || result;
+                                   compound.getChildTransform(i), flags) || result;
             return result;
         }
         else
         {
             rebuild();
-            return mMeshBuilder.addObject(shape, transform);
+            return mMeshBuilder.addObject(shape, transform, flags);
         }
     }
 
-    bool RecastMeshManager::updateObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform)
+    bool RecastMeshManager::updateObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform,
+                                         const unsigned char flags)
     {
         const auto object = mObjects.find(id);
         if (object == mObjects.end())
@@ -42,7 +43,7 @@ namespace DetourNavigator
             const auto& compound = static_cast<const btCompoundShape&>(shape);
             for (int i = 0, num = compound.getNumChildShapes(); i < num; ++i)
                 childChanged = updateObject(std::size_t(compound.getChildShape(i)), *compound.getChildShape(i),
-                                      compound.getChildTransform(i)) || childChanged;
+                                      compound.getChildTransform(i), flags) || childChanged;
         }
         const bool shapeChanged = object->second.mShape != &shape;
         const bool transformChanged = !(object->second.mTransform == transform);
@@ -95,7 +96,7 @@ namespace DetourNavigator
         {
             mMeshBuilder.reset();
             for (const auto& v : mObjects)
-                mMeshBuilder.addObject(*v.second.mShape, v.second.mTransform);
+                mMeshBuilder.addObject(*v.second.mShape, v.second.mTransform, v.second.flags);
             mShouldRebuild = false;
         }
     }

@@ -20,13 +20,16 @@ namespace DetourNavigator
         {
             const btCollisionShape* mShape;
             btTransform mTransform;
+            unsigned char flags;
         };
 
         RecastMeshManager(const Settings& settings, const TileBounds& bounds);
 
-        bool addObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform);
+        bool addObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform,
+                       const unsigned char flags);
 
-        bool updateObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform);
+        bool updateObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform,
+                          const unsigned char flags);
 
         boost::optional<Object> removeObject(std::size_t id);
 

@@ -25,25 +25,26 @@ namespace DetourNavigator
         mBounds.mMax /= mSettings.mRecastScaleFactor;
     }
 
-    bool RecastMeshBuilder::addObject(const btCollisionShape& shape, const btTransform& transform)
+    bool RecastMeshBuilder::addObject(const btCollisionShape& shape, const btTransform& transform,
+                                      const unsigned char flags)
     {
         if (shape.isCompound())
         {
-            return addObject(static_cast<const btCompoundShape&>(shape), transform);
+            return addObject(static_cast<const btCompoundShape&>(shape), transform, flags);
         }
         else if (shape.getShapeType() == TERRAIN_SHAPE_PROXYTYPE)
         {
-            addObject(static_cast<const btHeightfieldTerrainShape&>(shape), transform);
+            addObject(static_cast<const btHeightfieldTerrainShape&>(shape), transform, flags);
             return true;
         }
         else if (shape.isConcave())
         {
-            addObject(static_cast<const btConcaveShape&>(shape), transform);
+            addObject(static_cast<const btConcaveShape&>(shape), transform, flags);
             return true;
         }
         else if (shape.getShapeType() == BOX_SHAPE_PROXYTYPE)
         {
-            addObject(static_cast<const btBoxShape&>(shape), transform);
+            addObject(static_cast<const btBoxShape&>(shape), transform, flags);
             return true;
         }
         // TODO: support more Bullet shapes if required
@@ -51,33 +52,38 @@ namespace DetourNavigator
         return false;
     }
 
-    bool RecastMeshBuilder::addObject(const btCompoundShape& shape, const btTransform& transform)
+    bool RecastMeshBuilder::addObject(const btCompoundShape& shape, const btTransform& transform,
+                                      const unsigned char flags)
     {
         bool result = false;
         for (int i = 0, num = shape.getNumChildShapes(); i < num; ++i)
-            result |= addObject(*shape.getChildShape(i), transform * shape.getChildTransform(i));
+            result |= addObject(*shape.getChildShape(i), transform * shape.getChildTransform(i), flags);
         return result;
     }
 
-    void RecastMeshBuilder::addObject(const btConcaveShape& shape, const btTransform& transform)
+    void RecastMeshBuilder::addObject(const btConcaveShape& shape, const btTransform& transform,
+                                      const unsigned char flags)
     {
         return addObject(shape, transform, makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
         {
             for (std::size_t i = 3; i > 0; --i)
                 addTriangleVertex(transform(triangle[i - 1]) * mSettings.mRecastScaleFactor);
+            mFlags.push_back(flags);
         }));
     }
 
-    void RecastMeshBuilder::addObject(const btHeightfieldTerrainShape& shape, const btTransform& transform)
+    void RecastMeshBuilder::addObject(const btHeightfieldTerrainShape& shape, const btTransform& transform,
+                                      const unsigned char flags)
     {
         return addObject(shape, transform, makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
         {
             for (std::size_t i = 0; i < 3; ++i)
                 addTriangleVertex(transform(triangle[i]) * mSettings.mRecastScaleFactor);
+            mFlags.push_back(flags);
         }));
     }
 
-    void RecastMeshBuilder::addObject(const btBoxShape& shape, const btTransform& transform)
+    void RecastMeshBuilder::addObject(const btBoxShape& shape, const btTransform& transform, const unsigned char flags)
     {
         const auto indexOffset = int(mVertices.size() / 3);
 
@@ -87,6 +93,9 @@ namespace DetourNavigator
             shape.getVertex(vertex, position);
             addVertex(transform(position) * mSettings.mRecastScaleFactor);
         }
+
+        for (int vertex = 0; vertex < 12; ++vertex)
+            mFlags.push_back(flags);
 
         static const std::array<int, 36> indices {{
             0, 2, 3,
@@ -109,13 +118,14 @@ namespace DetourNavigator
 
     std::shared_ptr<RecastMesh> RecastMeshBuilder::create() const
     {
-        return std::make_shared<RecastMesh>(mIndices, mVertices, mSettings);
+        return std::make_shared<RecastMesh>(mIndices, mVertices, mFlags, mSettings);
     }
 
     void RecastMeshBuilder::reset()
     {
         mIndices.clear();
         mVertices.clear();
+        mFlags.clear();
     }
 
     void RecastMeshBuilder::addObject(const btConcaveShape& shape, const btTransform& transform,

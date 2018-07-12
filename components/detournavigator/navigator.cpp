@@ -2,6 +2,8 @@
 #include "debug.hpp"
 #include "settingsutils.hpp"
 
+#include <Recast.h>
+
 namespace DetourNavigator
 {
     Navigator::Navigator(const Settings& settings)
@@ -25,19 +27,43 @@ namespace DetourNavigator
         mNavMeshManager.reset(agentHalfExtents);
     }
 
-    bool Navigator::addObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform)
+    bool Navigator::addObject(std::size_t id, const ObjectShapes& shapes, const btTransform& transform)
     {
-        return mNavMeshManager.addObject(id, shape, transform);
+        bool result = mNavMeshManager.addObject(id, shapes.mShape, transform, RC_WALKABLE_AREA);
+        if (shapes.mAvoid)
+        {
+            const auto avoidId = reinterpret_cast<std::size_t>(shapes.mAvoid);
+            if (mNavMeshManager.addObject(avoidId, *shapes.mAvoid, transform, RC_NULL_AREA))
+            {
+                updateAvoidShapeId(id, avoidId);
+                result = true;
+            }
+        }
+        return result;
     }
 
-    bool Navigator::updateObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform)
+    bool Navigator::updateObject(std::size_t id, const ObjectShapes& shapes, const btTransform& transform)
     {
-        return mNavMeshManager.updateObject(id, shape, transform);
+        bool result = mNavMeshManager.updateObject(id, shapes.mShape, transform, RC_WALKABLE_AREA);
+        if (shapes.mAvoid)
+        {
+            const auto avoidId = reinterpret_cast<std::size_t>(shapes.mAvoid);
+            if (mNavMeshManager.updateObject(avoidId, *shapes.mAvoid, transform, RC_NULL_AREA))
+            {
+                updateAvoidShapeId(id, avoidId);
+                result = true;
+            }
+        }
+        return result;
     }
 
     bool Navigator::removeObject(std::size_t id)
     {
-        return mNavMeshManager.removeObject(id);
+        bool result = mNavMeshManager.removeObject(id);
+        const auto avoid = mAvoidIds.find(id);
+        if (avoid == mAvoidIds.end())
+            return result;
+        return mNavMeshManager.removeObject(avoid->second) || result;
     }
 
     void Navigator::update(const osg::Vec3f& playerPosition)
@@ -59,5 +85,15 @@ namespace DetourNavigator
     void Navigator::wait()
     {
         mNavMeshManager.wait();
+    }
+
+    void Navigator::updateAvoidShapeId(std::size_t id, std::size_t avoidId)
+    {
+        auto inserted = mAvoidIds.insert(std::make_pair(id, avoidId));
+        if (!inserted.second)
+        {
+            mNavMeshManager.removeObject(inserted.first->second);
+            inserted.second = avoidId;
+        }
     }
 }
