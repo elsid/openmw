@@ -41,7 +41,7 @@ namespace
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>());
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>());
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>());
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>());
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, add_bhv_triangle_mesh_shape)
@@ -50,7 +50,7 @@ namespace
         mesh.addTriangle(btVector3(-1, -1, 0), btVector3(-1, 1, 0), btVector3(1, -1, 0));
         btBvhTriangleMeshShape shape(&mesh, true);
         RecastMeshBuilder builder(mSettings, mBounds);
-        builder.addObject(static_cast<const btCollisionShape&>(shape), btTransform::getIdentity(), 1);
+        builder.addObject(static_cast<const btCollisionShape&>(shape), btTransform::getIdentity(), AreaType_ground);
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             1, 0, -1,
@@ -58,7 +58,7 @@ namespace
             -1, 0, -1,
         }));
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2}));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>({AreaType_ground}));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, add_transformed_bhv_triangle_mesh_shape)
@@ -70,7 +70,7 @@ namespace
         builder.addObject(
             static_cast<const btCollisionShape&>(shape),
             btTransform(btMatrix3x3::getIdentity().scaled(btVector3(1, 2, 3)), btVector3(1, 2, 3)),
-            1
+            AreaType_ground
         );
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
@@ -79,7 +79,7 @@ namespace
             0, 3, 0,
         }));
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2}));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>({AreaType_ground}));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, add_heightfield_terrian_shape)
@@ -87,7 +87,7 @@ namespace
         const std::array<btScalar, 4> heightfieldData {{0, 0, 0, 0}};
         btHeightfieldTerrainShape shape(2, 2, heightfieldData.data(), 1, 0, 0, 2, PHY_FLOAT, false);
         RecastMeshBuilder builder(mSettings, mBounds);
-        builder.addObject(static_cast<const btCollisionShape&>(shape), btTransform::getIdentity(), 1);
+        builder.addObject(static_cast<const btCollisionShape&>(shape), btTransform::getIdentity(), AreaType_ground);
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             -0.5, 0, -0.5,
@@ -98,14 +98,14 @@ namespace
             0.5, 0, 0.5,
         }));
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2, 3, 4, 5}));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1, 1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>({AreaType_ground, AreaType_ground}));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, add_box_shape_should_produce_12_triangles)
     { 
         btBoxShape shape(btVector3(1, 1, 2));
         RecastMeshBuilder builder(mSettings, mBounds);
-        builder.addObject(static_cast<const btCollisionShape&>(shape), btTransform::getIdentity(), 1);
+        builder.addObject(static_cast<const btCollisionShape&>(shape), btTransform::getIdentity(), AreaType_ground);
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             1, 2, 1,
@@ -131,7 +131,7 @@ namespace
             7, 6, 4,
             4, 5, 7,
         }));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>(12, AreaType_ground));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, add_compound_shape)
@@ -148,7 +148,11 @@ namespace
         shape.addChildShape(btTransform::getIdentity(), &box);
         shape.addChildShape(btTransform::getIdentity(), &triangle2);
         RecastMeshBuilder builder(mSettings, mBounds);
-        ASSERT_TRUE(builder.addObject(static_cast<const btCollisionShape&>(shape), btTransform::getIdentity(), 1));
+        ASSERT_TRUE(builder.addObject(
+            static_cast<const btCollisionShape&>(shape),
+            btTransform::getIdentity(),
+            AreaType_ground
+        ));
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             1, 0, -1,
@@ -182,7 +186,7 @@ namespace
             7, 8, 10,
             11, 12, 13,
         }));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>(14, AreaType_ground));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, add_transformed_compound_shape)
@@ -193,9 +197,11 @@ namespace
         btCompoundShape shape;
         shape.addChildShape(btTransform::getIdentity(), &triangle);
         RecastMeshBuilder builder(mSettings, mBounds);
-        builder.addObject(static_cast<const btCollisionShape&>(shape),
-                          btTransform(btMatrix3x3::getIdentity().scaled(btVector3(1, 2, 3)), btVector3(1, 2, 3)),
-                          1);
+        ASSERT_TRUE(builder.addObject(
+            static_cast<const btCollisionShape&>(shape),
+            btTransform(btMatrix3x3::getIdentity().scaled(btVector3(1, 2, 3)), btVector3(1, 2, 3)),
+            AreaType_ground
+        ));
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             2, 3, 0,
@@ -203,7 +209,7 @@ namespace
             0, 3, 0,
         }));
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2}));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>({AreaType_ground}));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, add_transformed_compound_shape_with_transformed_bhv_triangle_shape)
@@ -215,11 +221,11 @@ namespace
         shape.addChildShape(btTransform(btMatrix3x3::getIdentity().scaled(btVector3(1, 2, 3)), btVector3(1, 2, 3)),
                             &triangle);
         RecastMeshBuilder builder(mSettings, mBounds);
-        builder.addObject(
+        ASSERT_TRUE(builder.addObject(
             static_cast<const btCollisionShape&>(shape),
             btTransform(btMatrix3x3::getIdentity().scaled(btVector3(1, 2, 3)), btVector3(1, 2, 3)),
-            1
-        );
+            AreaType_ground
+        ));
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             3, 12, 2,
@@ -227,7 +233,7 @@ namespace
             1, 12, 2,
         }));
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2}));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>({AreaType_ground}));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, without_bounds_add_bhv_triangle_shape_should_not_filter_by_bounds)
@@ -237,7 +243,11 @@ namespace
         mesh.addTriangle(btVector3(-3, -3, 0), btVector3(-3, -2, 0), btVector3(-2, -3, 0));
         btBvhTriangleMeshShape shape(&mesh, true);
         RecastMeshBuilder builder(mSettings, mBounds);
-        builder.addObject(static_cast<const btCollisionShape&>(shape), btTransform::getIdentity(), 1);
+        ASSERT_TRUE(builder.addObject(
+            static_cast<const btCollisionShape&>(shape),
+            btTransform::getIdentity(),
+            AreaType_ground
+        ));
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             1, 0, -1,
@@ -248,7 +258,7 @@ namespace
             -3, 0, -3,
         }));
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2, 3, 4, 5}));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1, 1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>(2, AreaType_ground));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, with_bounds_add_bhv_triangle_shape_should_filter_by_bounds)
@@ -261,7 +271,11 @@ namespace
         mesh.addTriangle(btVector3(-3, -3, 0), btVector3(-3, -2, 0), btVector3(-2, -3, 0));
         btBvhTriangleMeshShape shape(&mesh, true);
         RecastMeshBuilder builder(mSettings, mBounds);
-        builder.addObject(static_cast<const btCollisionShape&>(shape), btTransform::getIdentity(), 1);
+        ASSERT_TRUE(builder.addObject(
+            static_cast<const btCollisionShape&>(shape),
+            btTransform::getIdentity(),
+            AreaType_ground
+        ));
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             -0.2f, 0, -0.3f,
@@ -269,7 +283,7 @@ namespace
             -0.3f, 0, -0.3f,
         }));
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2}));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>({AreaType_ground}));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, with_bounds_add_rotated_by_x_bhv_triangle_shape_should_filter_by_bounds)
@@ -281,8 +295,12 @@ namespace
         mesh.addTriangle(btVector3(0, -3, -3), btVector3(0, -3, -2), btVector3(0, -2, -3));
         btBvhTriangleMeshShape shape(&mesh, true);
         RecastMeshBuilder builder(mSettings, mBounds);
-        builder.addObject(static_cast<const btCollisionShape&>(shape),
-                          btTransform(btQuaternion(btVector3(1, 0, 0), static_cast<btScalar>(-osg::PI_4))), 1);
+        ASSERT_TRUE(builder.addObject(
+            static_cast<const btCollisionShape&>(shape),
+            btTransform(btQuaternion(btVector3(1, 0, 0),
+            static_cast<btScalar>(-osg::PI_4))),
+            AreaType_ground
+        ));
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             0, -0.70710659027099609375, -3.535533905029296875,
@@ -290,7 +308,7 @@ namespace
             0, 2.384185791015625e-07, -4.24264049530029296875,
         }));
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2}));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>({AreaType_ground}));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, with_bounds_add_rotated_by_y_bhv_triangle_shape_should_filter_by_bounds)
@@ -302,8 +320,12 @@ namespace
         mesh.addTriangle(btVector3(-3, 0, -3), btVector3(-3, 0, -2), btVector3(-2, 0, -3));
         btBvhTriangleMeshShape shape(&mesh, true);
         RecastMeshBuilder builder(mSettings, mBounds);
-        builder.addObject(static_cast<const btCollisionShape&>(shape),
-                          btTransform(btQuaternion(btVector3(0, 1, 0), static_cast<btScalar>(osg::PI_4))), 1);
+        ASSERT_TRUE(builder.addObject(
+            static_cast<const btCollisionShape&>(shape),
+            btTransform(btQuaternion(btVector3(0, 1, 0),
+            static_cast<btScalar>(osg::PI_4))),
+            AreaType_ground
+        ));
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             -3.535533905029296875, -0.70710659027099609375, 0,
@@ -311,7 +333,7 @@ namespace
             -4.24264049530029296875, 2.384185791015625e-07, 0,
         }));
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2}));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>({AreaType_ground}));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, with_bounds_add_rotated_by_z_bhv_triangle_shape_should_filter_by_bounds)
@@ -323,8 +345,12 @@ namespace
         mesh.addTriangle(btVector3(-3, -3, 0), btVector3(-3, -2, 0), btVector3(-2, -3, 0));
         btBvhTriangleMeshShape shape(&mesh, true);
         RecastMeshBuilder builder(mSettings, mBounds);
-        builder.addObject(static_cast<const btCollisionShape&>(shape),
-                          btTransform(btQuaternion(btVector3(0, 0, 1), static_cast<btScalar>(osg::PI_4))), 1);
+        ASSERT_TRUE(builder.addObject(
+            static_cast<const btCollisionShape&>(shape),
+            btTransform(btQuaternion(btVector3(0, 0, 1),
+            static_cast<btScalar>(osg::PI_4))),
+            AreaType_ground
+        ));
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             0.707107067108154296875, 0, -3.535533905029296875,
@@ -332,7 +358,7 @@ namespace
             2.384185791015625e-07, 0, -4.24264049530029296875,
         }));
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2}));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>({AreaType_ground}));
     }
 
     TEST_F(DetourNavigatorRecastMeshBuilderTest, flags_values_should_be_corresponding_to_added_objects)
@@ -344,8 +370,16 @@ namespace
         mesh2.addTriangle(btVector3(-3, -3, 0), btVector3(-3, -2, 0), btVector3(-2, -3, 0));
         btBvhTriangleMeshShape shape2(&mesh2, true);
         RecastMeshBuilder builder(mSettings, mBounds);
-        builder.addObject(static_cast<const btCollisionShape&>(shape1), btTransform::getIdentity(), 1);
-        builder.addObject(static_cast<const btCollisionShape&>(shape2), btTransform::getIdentity(), 0);
+        ASSERT_TRUE(builder.addObject(
+            static_cast<const btCollisionShape&>(shape1),
+            btTransform::getIdentity(),
+            AreaType_ground
+        ));
+        ASSERT_TRUE(builder.addObject(
+            static_cast<const btCollisionShape&>(shape2),
+            btTransform::getIdentity(),
+            AreaType_null
+        ));
         const auto recastMesh = builder.create();
         EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
             1, 0, -1,
@@ -356,6 +390,6 @@ namespace
             -3, 0, -3,
         }));
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2, 3, 4, 5}));
-        EXPECT_EQ(recastMesh->getFlags(), std::vector<unsigned char>({1, 0}));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>({AreaType_ground, AreaType_null}));
     }
 }

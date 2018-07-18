@@ -1,6 +1,8 @@
 #ifndef OPENMW_COMPONENTS_DETOURNAVIGATOR_RECASTMESH_H
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_RECASTMESH_H
 
+#include "area_type.hpp"
+
 #include <memory>
 #include <vector>
 
@@ -15,7 +17,7 @@ namespace DetourNavigator
     {
     public:
         RecastMesh(std::vector<int> indices, std::vector<float> vertices,
-                   std::vector<unsigned char> flags, const Settings& settings);
+                   std::vector<AreaType> areaTypes, const Settings& settings);
 
         const std::vector<int>& getIndices() const
         {
@@ -27,9 +29,9 @@ namespace DetourNavigator
             return mVertices;
         }
 
-        const std::vector<unsigned char>& getFlags() const
+        const std::vector<AreaType>& getAreaTypes() const
         {
-            return mFlags;
+            return mAreaTypes;
         }
 
         std::size_t getVerticesCount() const
@@ -60,7 +62,7 @@ namespace DetourNavigator
     private:
         std::vector<int> mIndices;
         std::vector<float> mVertices;
-        std::vector<unsigned char> mFlags;
+        std::vector<AreaType> mAreaTypes;
         const Settings& mSettings;
         std::unique_ptr<ChunkyTriMesh> mChunkyTriMesh;
         osg::Vec3f mBoundsMin;

@@ -29,11 +29,11 @@ namespace DetourNavigator
 
     bool Navigator::addObject(std::size_t id, const ObjectShapes& shapes, const btTransform& transform)
     {
-        bool result = mNavMeshManager.addObject(id, shapes.mShape, transform, RC_WALKABLE_AREA);
+        bool result = mNavMeshManager.addObject(id, shapes.mShape, transform, AreaType_ground);
         if (shapes.mAvoid)
         {
             const auto avoidId = reinterpret_cast<std::size_t>(shapes.mAvoid);
-            if (mNavMeshManager.addObject(avoidId, *shapes.mAvoid, transform, RC_NULL_AREA))
+            if (mNavMeshManager.addObject(avoidId, *shapes.mAvoid, transform, AreaType_null))
             {
                 updateAvoidShapeId(id, avoidId);
                 result = true;
@@ -44,11 +44,11 @@ namespace DetourNavigator
 
     bool Navigator::updateObject(std::size_t id, const ObjectShapes& shapes, const btTransform& transform)
     {
-        bool result = mNavMeshManager.updateObject(id, shapes.mShape, transform, RC_WALKABLE_AREA);
+        bool result = mNavMeshManager.updateObject(id, shapes.mShape, transform, AreaType_ground);
         if (shapes.mAvoid)
         {
             const auto avoidId = reinterpret_cast<std::size_t>(shapes.mAvoid);
-            if (mNavMeshManager.updateObject(avoidId, *shapes.mAvoid, transform, RC_NULL_AREA))
+            if (mNavMeshManager.updateObject(avoidId, *shapes.mAvoid, transform, AreaType_null))
             {
                 updateAvoidShapeId(id, avoidId);
                 result = true;
