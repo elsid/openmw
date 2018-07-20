@@ -1,7 +1,7 @@
 #ifndef OPENMW_COMPONENTS_DETOURNAVIGATOR_RECASTMESH_H
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_RECASTMESH_H
 
-#include "area_type.hpp"
+#include "areatype.hpp"
 
 #include <memory>
 #include <vector>

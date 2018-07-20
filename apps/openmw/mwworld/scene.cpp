@@ -294,7 +294,11 @@ namespace MWWorld
                 const auto cellX = (*iter)->getCell()->getGridX();
                 const auto cellY = (*iter)->getCell()->getGridY();
                 if (const auto heightField = mPhysics->getHeightField(cellX, cellY))
-                    navigator->removeObject(reinterpret_cast<std::size_t>(heightField));
+                {
+                    const auto objectId = reinterpret_cast<std::size_t>(heightField);
+                    navigator->removeObject(objectId);
+                    mWaterShapes.erase(objectId);
+                }
                 mPhysics->removeHeightField(cellX, cellY);
             }
         }
@@ -345,8 +349,23 @@ namespace MWWorld
                 }
 
                 if (const auto heightField = mPhysics->getHeightField(cellX, cellY))
-                    navigator->addObject(reinterpret_cast<std::size_t>(heightField), *heightField->getShape(),
+                {
+                    if (cell->getCell()->hasWater())
+                    {
+                        std::unique_ptr<DetourNavigator::Water> water(new DetourNavigator::Water(
+                            cell->getWaterLevel(), ESM::Land::REAL_SIZE));
+                        const auto objectId = reinterpret_cast<std::size_t>(heightField);
+                        navigator->addObject(objectId,
+                            DetourNavigator::ObjectShapes {*heightField->getShape(), *water},
                             heightField->getCollisionObject()->getWorldTransform());
+                        mWaterShapes[objectId] = std::move(water);
+                    }
+                    else
+                    {
+                        navigator->addObject(reinterpret_cast<std::size_t>(heightField), *heightField->getShape(),
+                                heightField->getCollisionObject()->getWorldTransform());
+                    }
+                }
             }
 
             // register local scripts

@@ -6,6 +6,7 @@
 
 #include <set>
 #include <memory>
+#include <unordered_map>
 
 namespace osg
 {
@@ -25,6 +26,11 @@ namespace Files
 namespace Loading
 {
     class Listener;
+}
+
+namespace DetourNavigator
+{
+    class Water;
 }
 
 namespace MWRender
@@ -70,6 +76,8 @@ namespace MWWorld
             float mPredictionTime;
 
             osg::Vec3f mLastPlayerPos;
+
+            std::unordered_map<std::size_t, std::unique_ptr<DetourNavigator::Water>> mWaterShapes;
 
             void insertCell (CellStore &cell, bool rescale, Loading::Listener* loadingListener);
 

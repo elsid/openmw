@@ -3,6 +3,7 @@
 
 #include "dtstatus.hpp"
 #include "exceptions.hpp"
+#include "flags.hpp"
 #include "settings.hpp"
 #include "settingsutils.hpp"
 
@@ -217,6 +218,7 @@ namespace DetourNavigator
         OPENMW_CHECK_DT_STATUS(navMeshQuery.init(&navMesh, settings.mMaxNavMeshQueryNodes));
 
         dtQueryFilter queryFilter;
+        queryFilter.setIncludeFlags(Flag_swim | Flag_walk);
 
         dtPolyRef startRef = 0;
         osg::Vec3f startPolygonPosition;

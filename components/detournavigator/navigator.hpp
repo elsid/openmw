@@ -5,6 +5,7 @@
 #include "navmeshmanager.hpp"
 #include "settings.hpp"
 #include "settingsutils.hpp"
+#include "water.hpp"
 
 namespace DetourNavigator
 {
@@ -12,9 +13,14 @@ namespace DetourNavigator
     {
         const btCollisionShape& mShape;
         const btCollisionShape* mAvoid;
+        const btCollisionShape* mWater;
 
         ObjectShapes(const btCollisionShape& shape, const btCollisionShape* avoid = nullptr)
-            : mShape(shape), mAvoid(avoid)
+            : mShape(shape), mAvoid(avoid), mWater(nullptr)
+        {}
+
+        ObjectShapes(const btHeightfieldTerrainShape& shape, const Water& water)
+            : mShape(shape), mAvoid(nullptr), mWater(&water.getImpl())
         {}
     };
 
@@ -55,8 +61,11 @@ namespace DetourNavigator
         NavMeshManager mNavMeshManager;
         std::map<osg::Vec3f, std::size_t> mAgents;
         std::unordered_map<std::size_t, std::size_t> mAvoidIds;
+        std::unordered_map<std::size_t, std::size_t> mWaterIds;
 
-        void updateAvoidShapeId(std::size_t id, std::size_t avoidId);
+        void updateAvoidShapeId(const std::size_t id, const std::size_t avoidId);
+        void updateWaterShapeId(const std::size_t id, const std::size_t waterId);
+        void updateId(const std::size_t id, const std::size_t waterId, std::unordered_map<std::size_t, std::size_t>& ids);
     };
 }
 

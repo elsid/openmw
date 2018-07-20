@@ -1,7 +1,7 @@
 #ifndef OPENMW_COMPONENTS_DETOURNAVIGATOR_CHUNKYTRIMESH_H
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_CHUNKYTRIMESH_H
 
-#include "area_type.hpp"
+#include "areatype.hpp"
 
 #include <osg/Vec2f>
 

@@ -178,8 +178,12 @@ namespace
         }
 
         for (int i = 0; i < polyMesh.npolys; ++i)
+        {
             if (polyMesh.areas[i] == AreaType_ground)
                 polyMesh.flags[i] = Flag_walk;
+            else if (polyMesh.areas[i] == AreaType_water)
+                polyMesh.flags[i] = Flag_swim;
+        }
 
         dtNavMeshCreateParams params;
         params.verts = polyMesh.verts;

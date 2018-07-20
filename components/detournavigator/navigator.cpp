@@ -39,6 +39,19 @@ namespace DetourNavigator
                 result = true;
             }
         }
+        if (shapes.mWater)
+        {
+            const auto waterId = reinterpret_cast<std::size_t>(shapes.mWater);
+            const btTransform waterTransform(
+                btMatrix3x3::getIdentity(),
+                btVector3(transform.getOrigin().x(), transform.getOrigin().y(), 0)
+            );
+            if (mNavMeshManager.addObject(waterId, *shapes.mWater, waterTransform, AreaType_water))
+            {
+                updateWaterShapeId(id, waterId);
+                result = true;
+            }
+        }
         return result;
     }
 
@@ -54,6 +67,19 @@ namespace DetourNavigator
                 result = true;
             }
         }
+        if (shapes.mWater)
+        {
+            const auto waterId = reinterpret_cast<std::size_t>(shapes.mWater);
+            const btTransform waterTransform(
+                btMatrix3x3::getIdentity(),
+                btVector3(transform.getOrigin().x(), transform.getOrigin().y(), 0)
+            );
+            if (mNavMeshManager.updateObject(waterId, *shapes.mWater, waterTransform, AreaType_water))
+            {
+                updateWaterShapeId(id, waterId);
+                result = true;
+            }
+        }
         return result;
     }
 
@@ -61,9 +87,12 @@ namespace DetourNavigator
     {
         bool result = mNavMeshManager.removeObject(id);
         const auto avoid = mAvoidIds.find(id);
-        if (avoid == mAvoidIds.end())
-            return result;
-        return mNavMeshManager.removeObject(avoid->second) || result;
+        if (avoid != mAvoidIds.end())
+            result = mNavMeshManager.removeObject(avoid->second) || result;
+        const auto water = mWaterIds.find(id);
+        if (water != mWaterIds.end())
+            result = mNavMeshManager.removeObject(water->second) || result;
+        return result;
     }
 
     void Navigator::update(const osg::Vec3f& playerPosition)
@@ -87,13 +116,23 @@ namespace DetourNavigator
         mNavMeshManager.wait();
     }
 
-    void Navigator::updateAvoidShapeId(std::size_t id, std::size_t avoidId)
+    void Navigator::updateAvoidShapeId(const std::size_t id, const std::size_t avoidId)
     {
-        auto inserted = mAvoidIds.insert(std::make_pair(id, avoidId));
+        updateId(id, avoidId, mWaterIds);
+    }
+
+    void Navigator::updateWaterShapeId(const std::size_t id, const std::size_t waterId)
+    {
+        updateId(id, waterId, mWaterIds);
+    }
+
+    void Navigator::updateId(const std::size_t id, const std::size_t updateId, std::unordered_map<std::size_t, std::size_t>& ids)
+    {
+        auto inserted = ids.insert(std::make_pair(id, updateId));
         if (!inserted.second)
         {
             mNavMeshManager.removeObject(inserted.first->second);
-            inserted.second = avoidId;
+            inserted.second = updateId;
         }
     }
 }
