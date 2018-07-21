@@ -59,20 +59,20 @@ namespace
 
     TEST_F(DetourNavigatorNavigatorTest, find_path_for_empty_should_throw_exception)
     {
-        EXPECT_THROW(mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, mOut), InvalidArgument);
+        EXPECT_THROW(mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut), InvalidArgument);
     }
 
     TEST_F(DetourNavigatorNavigatorTest, find_path_for_existing_agent_with_no_navmesh_should_throw_exception)
     {
         mNavigator->addAgent(mAgentHalfExtents);
-        EXPECT_THROW(mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, mOut), NavigatorException);
+        EXPECT_THROW(mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut), NavigatorException);
     }
 
     TEST_F(DetourNavigatorNavigatorTest, find_path_for_removed_agent_should_throw_exception)
     {
         mNavigator->addAgent(mAgentHalfExtents);
         mNavigator->removeAgent(mAgentHalfExtents);
-        EXPECT_THROW(mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, mOut), InvalidArgument);
+        EXPECT_THROW(mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut), InvalidArgument);
     }
 
     TEST_F(DetourNavigatorNavigatorTest, add_agent_should_count_each_agent)
@@ -80,7 +80,7 @@ namespace
         mNavigator->addAgent(mAgentHalfExtents);
         mNavigator->addAgent(mAgentHalfExtents);
         mNavigator->removeAgent(mAgentHalfExtents);
-        EXPECT_THROW(mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, mOut), NavigatorException);
+        EXPECT_THROW(mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut), NavigatorException);
     }
 
     TEST_F(DetourNavigatorNavigatorTest, update_then_find_path_should_return_path)
@@ -100,7 +100,7 @@ namespace
         mNavigator->update(mPlayerPosition);
         mNavigator->wait();
 
-        mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, mOut);
+        mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut);
 
         EXPECT_EQ(mPath, std::deque<osg::Vec3f>({
             osg::Vec3f(-215, 215, 7.69229984283447265625),
@@ -151,7 +151,7 @@ namespace
         mNavigator->update(mPlayerPosition);
         mNavigator->wait();
 
-        mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, mOut);
+        mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut);
 
         EXPECT_EQ(mPath, std::deque<osg::Vec3f>({
             osg::Vec3f(-215, 215, 7.637353420257568359375),
@@ -201,7 +201,7 @@ namespace
         mNavigator->update(mPlayerPosition);
         mNavigator->wait();
 
-        mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, mOut);
+        mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut);
 
         EXPECT_EQ(mPath, std::deque<osg::Vec3f>({
             osg::Vec3f(-215, 215, 7.6068267822265625),
@@ -244,7 +244,7 @@ namespace
         mNavigator->update(mPlayerPosition);
         mNavigator->wait();
 
-        mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, mOut);
+        mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk | Flag_swim, mOut);
 
         EXPECT_EQ(mPath, std::deque<osg::Vec3f>({
             osg::Vec3f(-215, 215, 7.69229984283447265625),
@@ -263,6 +263,51 @@ namespace
             osg::Vec3f(138.553375244140625, -138.553375244140625, 7.69229984283447265625),
             osg::Vec3f(165.749786376953125, -165.749786376953125, 7.69229984283447265625),
             osg::Vec3f(192.9461822509765625, -192.9461822509765625, 7.69229984283447265625),
+            osg::Vec3f(215, -215, 7.69229984283447265625),
+        }));
+    }
+
+    TEST_F(DetourNavigatorNavigatorTest, path_should_be_around_water_when_use_only_walk_flag)
+    {
+        std::array<btScalar, 5 * 5> heightfieldData {{
+            0,   0,    0,    0,    0,
+            0, -25,  -25,  -25,  -25,
+            0, -25, -100, -100, -100,
+            0, -25, -100, -100, -100,
+            0, -25, -100, -100, -100,
+        }};
+        btHeightfieldTerrainShape shape(5, 5, heightfieldData.data(), 1, 0, 0, 2, PHY_FLOAT, false);
+        shape.setLocalScaling(btVector3(128, 128, 1));
+
+        const Water water(-25, 128 * 4);
+
+        mNavigator->addAgent(mAgentHalfExtents);
+        mNavigator->addObject(1, ObjectShapes {shape, water}, btTransform::getIdentity());
+        mNavigator->update(mPlayerPosition);
+        mNavigator->wait();
+
+        mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut);
+
+        EXPECT_EQ(mPath, std::deque<osg::Vec3f>({
+            osg::Vec3f(-215, 215, 7.69229984283447265625),
+            osg::Vec3f(-204.90869140625, 177.8859100341796875, 7.69229984283447265625),
+            osg::Vec3f(-194.8173828125, 140.771820068359375, 7.69229984283447265625),
+            osg::Vec3f(-184.7260589599609375, 103.65773773193359375, 7.69229984283447265625),
+            osg::Vec3f(-174.634735107421875, 66.54364776611328125, 7.69229984283447265625),
+            osg::Vec3f(-164.5434417724609375, 29.429561614990234375, 7.69229984283447265625),
+            osg::Vec3f(-154.4521331787109375, -7.684524059295654296875, 7.69229984283447265625),
+            osg::Vec3f(-144.3608245849609375, -44.798610687255859375, 7.69229984283447265625),
+            osg::Vec3f(-134.269500732421875, -81.91269683837890625, 7.69229984283447265625),
+            osg::Vec3f(-124.17818450927734375, -119.0267791748046875, 7.69229984283447265625),
+            osg::Vec3f(-114.08687591552734375, -156.140869140625, 7.69229984283447265625),
+            osg::Vec3f(-76.2261505126953125, -162.9124908447265625, 7.69229984283447265625),
+            osg::Vec3f(-38.365413665771484375, -169.684112548828125, 7.69229984283447265625),
+            osg::Vec3f(-0.504681646823883056640625, -176.4557342529296875, 7.69229984283447265625),
+            osg::Vec3f(37.356048583984375, -183.2273406982421875, 7.69229984283447265625),
+            osg::Vec3f(75.2167816162109375, -189.99896240234375, 7.69229984283447265625),
+            osg::Vec3f(113.0775146484375, -196.77056884765625, 7.69229984283447265625),
+            osg::Vec3f(150.9382476806640625, -203.5421905517578125, 7.69229984283447265625),
+            osg::Vec3f(188.7989654541015625, -210.31378173828125, 7.69229984283447265625),
             osg::Vec3f(215, -215, 7.69229984283447265625),
         }));
     }

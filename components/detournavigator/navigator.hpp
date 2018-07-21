@@ -2,6 +2,7 @@
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_NAVIGATOR_H
 
 #include "findsmoothpath.hpp"
+#include "flags.hpp"
 #include "navmeshmanager.hpp"
 #include "settings.hpp"
 #include "settingsutils.hpp"
@@ -43,11 +44,12 @@ namespace DetourNavigator
 
         template <class OutputIterator>
         OutputIterator findPath(const osg::Vec3f& agentHalfExtents, const osg::Vec3f& start,
-            const osg::Vec3f& end, OutputIterator out) const
+            const osg::Vec3f& end, const Flags includeFlags, OutputIterator out) const
         {
             const auto navMesh = mNavMeshManager.getNavMesh(agentHalfExtents);
             return findSmoothPath(*navMesh.lock(), toNavMeshCoordinates(agentHalfExtents, mSettings),
-                toNavMeshCoordinates(start, mSettings), toNavMeshCoordinates(end, mSettings), mSettings, out);
+                toNavMeshCoordinates(start, mSettings), toNavMeshCoordinates(end, mSettings), includeFlags,
+                mSettings, out);
         }
 
         std::map<osg::Vec3f, std::shared_ptr<NavMeshCacheItem>> getNavMeshes() const;
