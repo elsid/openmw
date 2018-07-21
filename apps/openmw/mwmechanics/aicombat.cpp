@@ -101,7 +101,7 @@ namespace MWMechanics
     {
         // get or create temporary storage
         AiCombatStorage& storage = state.get<AiCombatStorage>();
-        
+
         //General description
         if (actor.getClass().getCreatureStats(actor).isDead())
             return true;
@@ -450,7 +450,7 @@ namespace MWMechanics
 
         bool targetUsesRanged = false;
         float rangeAttackOfTarget = ActionWeapon(targetWeapon).getCombatRange(targetUsesRanged);
-        
+
         if (mMovement.mPosition[0] || mMovement.mPosition[1])
         {
             mTimerCombatMove = 0.1f + 0.1f * Misc::Rng::rollClosedProbability();
@@ -503,7 +503,7 @@ namespace MWMechanics
         mCombatMove = false;
     }
 
-    void AiCombatStorage::startAttackIfReady(const MWWorld::Ptr& actor, CharacterController& characterController, 
+    void AiCombatStorage::startAttackIfReady(const MWWorld::Ptr& actor, CharacterController& characterController,
         const ESM::Weapon* weapon, bool distantCombat)
     {
         if (mReadyToAttack && characterController.readyToStartAttack())
