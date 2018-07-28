@@ -1,7 +1,13 @@
+#include <components/detournavigator/debug.hpp>
 #include <components/detournavigator/navigator.hpp>
 #include <components/detournavigator/exceptions.hpp>
+#include <components/detournavigator/settingsutils.hpp>
+#include <components/detournavigator/obstacleavoidancetype.hpp>
+#include <components/detournavigator/queryfiltertype.hpp>
 
 #include <BulletCollision/CollisionShapes/btHeightfieldTerrainShape.h>
+
+#include <DetourCrowd.h>
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -23,6 +29,8 @@ namespace
         osg::Vec3f mEnd;
         std::deque<osg::Vec3f> mPath;
         std::back_insert_iterator<std::deque<osg::Vec3f>> mOut;
+        std::size_t mAgentId;
+        dtCrowdAgentParams mAgentCrowdParams;
 
         DetourNavigatorNavigatorTest()
             : mPlayerPosition(0, 0, 0)
@@ -30,6 +38,7 @@ namespace
             , mStart(-215, 215, 1)
             , mEnd(215, -215, 1)
             , mOut(mPath)
+            , mAgentId(0)
         {
             mSettings.mEnableWriteRecastMeshToFile = false;
             mSettings.mEnableWriteNavMeshToFile = false;
@@ -40,11 +49,13 @@ namespace
             mSettings.mCellSize = 0.2f;
             mSettings.mDetailSampleDist = 6;
             mSettings.mDetailSampleMaxError = 1;
+            mSettings.mMaxAgentRadius = 1;
             mSettings.mMaxClimb = 34;
             mSettings.mMaxSimplificationError = 1.3f;
             mSettings.mMaxSlope = 49;
             mSettings.mRecastScaleFactor = 0.013f;
             mSettings.mTileSize = 64;
+            mSettings.mMaxAgents = 128;
             mSettings.mMaxEdgeLen = 12;
             mSettings.mMaxNavMeshQueryNodes = 2048;
             mSettings.mMaxVertsPerPoly = 6;
@@ -53,7 +64,24 @@ namespace
             mSettings.mMaxPolygonPathSize = 1024;
             mSettings.mMaxSmoothPathSize = 1024;
             mSettings.mTrianglesPerChunk = 256;
+
             mNavigator.reset(new Navigator(mSettings));
+
+            mAgentCrowdParams.radius = getRadius(mAgentHalfExtents, mSettings);
+            mAgentCrowdParams.height = getHeight(mAgentHalfExtents, mSettings);
+            mAgentCrowdParams.maxSpeed = 2;
+            mAgentCrowdParams.maxAcceleration = mAgentCrowdParams.maxSpeed;
+            mAgentCrowdParams.collisionQueryRange = mAgentCrowdParams.radius * 50;
+            mAgentCrowdParams.pathOptimizationRange = mAgentCrowdParams.radius * 100;
+            mAgentCrowdParams.separationWeight = mAgentCrowdParams.radius * 2;
+            mAgentCrowdParams.updateFlags = DT_CROWD_ANTICIPATE_TURNS
+                | DT_CROWD_OBSTACLE_AVOIDANCE
+                | DT_CROWD_SEPARATION
+                | DT_CROWD_OPTIMIZE_VIS
+                | DT_CROWD_OPTIMIZE_TOPO;
+            mAgentCrowdParams.obstacleAvoidanceType = ObstacleAvoidanceType_veryHigh;
+            mAgentCrowdParams.queryFilterType = QueryFilterType_allFlags;
+            mAgentCrowdParams.userData = nullptr;
         }
     };
 
@@ -64,22 +92,22 @@ namespace
 
     TEST_F(DetourNavigatorNavigatorTest, find_path_for_existing_agent_with_no_navmesh_should_throw_exception)
     {
-        mNavigator->addAgent(mAgentHalfExtents);
+        mNavigator->addAgent(mAgentId, mStart, mAgentHalfExtents, mAgentCrowdParams);
         EXPECT_THROW(mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut), NavigatorException);
     }
 
     TEST_F(DetourNavigatorNavigatorTest, find_path_for_removed_agent_should_throw_exception)
     {
-        mNavigator->addAgent(mAgentHalfExtents);
-        mNavigator->removeAgent(mAgentHalfExtents);
+        mNavigator->addAgent(mAgentId, mStart, mAgentHalfExtents, mAgentCrowdParams);
+        mNavigator->removeAgent(mAgentId, mAgentHalfExtents);
         EXPECT_THROW(mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut), InvalidArgument);
     }
 
     TEST_F(DetourNavigatorNavigatorTest, add_agent_should_count_each_agent)
     {
-        mNavigator->addAgent(mAgentHalfExtents);
-        mNavigator->addAgent(mAgentHalfExtents);
-        mNavigator->removeAgent(mAgentHalfExtents);
+        mNavigator->addAgent(mAgentId, mStart, mAgentHalfExtents, mAgentCrowdParams);
+        mNavigator->addAgent(mAgentId, mStart, mAgentHalfExtents, mAgentCrowdParams);
+        mNavigator->removeAgent(mAgentId, mAgentHalfExtents);
         EXPECT_THROW(mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut), NavigatorException);
     }
 
@@ -95,7 +123,7 @@ namespace
         btHeightfieldTerrainShape shape(5, 5, heightfieldData.data(), 1, 0, 0, 2, PHY_FLOAT, false);
         shape.setLocalScaling(btVector3(128, 128, 1));
 
-        mNavigator->addAgent(mAgentHalfExtents);
+        mNavigator->addAgent(mAgentId, mStart, mAgentHalfExtents, mAgentCrowdParams);
         mNavigator->addObject(1, shape, btTransform::getIdentity());
         mNavigator->update(mPlayerPosition);
         mNavigator->wait();
@@ -145,7 +173,7 @@ namespace
         btHeightfieldTerrainShape shape2(5, 5, heightfieldData2.data(), 1, 0, 0, 2, PHY_FLOAT, false);
         shape2.setLocalScaling(btVector3(128, 128, 1));
 
-        mNavigator->addAgent(mAgentHalfExtents);
+        mNavigator->addAgent(mAgentId, mStart, mAgentHalfExtents, mAgentCrowdParams);
         mNavigator->addObject(1, shape, btTransform::getIdentity());
         mNavigator->addObject(2, shape2, btTransform::getIdentity());
         mNavigator->update(mPlayerPosition);
@@ -196,7 +224,7 @@ namespace
         btHeightfieldTerrainShape shapeAvoid(5, 5, heightfieldDataAvoid.data(), 1, 0, 0, 2, PHY_FLOAT, false);
         shapeAvoid.setLocalScaling(btVector3(128, 128, 1));
 
-        mNavigator->addAgent(mAgentHalfExtents);
+        mNavigator->addAgent(mAgentId, mStart, mAgentHalfExtents, mAgentCrowdParams);
         mNavigator->addObject(1, ObjectShapes {shape, &shapeAvoid}, btTransform::getIdentity());
         mNavigator->update(mPlayerPosition);
         mNavigator->wait();
@@ -239,7 +267,7 @@ namespace
 
         const Water water(-25, 128 * 4);
 
-        mNavigator->addAgent(mAgentHalfExtents);
+        mNavigator->addAgent(mAgentId, mStart, mAgentHalfExtents, mAgentCrowdParams);
         mNavigator->addObject(1, ObjectShapes {shape, water}, btTransform::getIdentity());
         mNavigator->update(mPlayerPosition);
         mNavigator->wait();
@@ -281,7 +309,7 @@ namespace
 
         const Water water(-25, 128 * 4);
 
-        mNavigator->addAgent(mAgentHalfExtents);
+        mNavigator->addAgent(mAgentId, mStart, mAgentHalfExtents, mAgentCrowdParams);
         mNavigator->addObject(1, ObjectShapes {shape, water}, btTransform::getIdentity());
         mNavigator->update(mPlayerPosition);
         mNavigator->wait();
@@ -310,5 +338,62 @@ namespace
             osg::Vec3f(188.7989654541015625, -210.31378173828125, 7.69229984283447265625),
             osg::Vec3f(215, -215, 7.69229984283447265625),
         }));
+    }
+
+    TEST_F(DetourNavigatorNavigatorTest, set_agent_target_and_update_crowd_then_get_agent_target_should_return_next_path_point)
+    {
+        const std::array<btScalar, 5 * 5> heightfieldData {{
+            0,   0,    0,    0,    0,
+            0, -25,  -25,  -25,  -25,
+            0, -25, -100, -100, -100,
+            0, -25, -100, -100, -100,
+            0, -25, -100, -100, -100,
+        }};
+        btHeightfieldTerrainShape shape(5, 5, heightfieldData.data(), 1, 0, 0, 2, PHY_FLOAT, false);
+        shape.setLocalScaling(btVector3(128, 128, 1));
+
+        mNavigator->addAgent(mAgentId, mStart, mAgentHalfExtents, mAgentCrowdParams);
+        mNavigator->addObject(1, shape, btTransform::getIdentity());
+        mNavigator->update(mPlayerPosition);
+        mNavigator->wait();
+
+        mNavigator->findPath(mAgentHalfExtents, mStart, mEnd, Flag_walk, mOut);
+
+        mNavigator->updateAgentTarget(mAgentId, mPath[1], Flag_walk);
+        mNavigator->updateCrowd(1.0f / 25.0f);
+
+        const auto agentPosition = mNavigator->getAgentPosition(mAgentId);
+
+        EXPECT_EQ(agentPosition, osg::Vec3f(-214.825927734375, 214.825927734375, 7.69229984283447265625));
+    }
+
+    TEST_F(DetourNavigatorNavigatorTest, set_agent_target_and_update_crowd_multiple_times_then_agent_should_reach_end)
+    {
+        const std::array<btScalar, 5 * 5> heightfieldData {{
+            0,   0,    0,    0,    0,
+            0, -25,  -25,  -25,  -25,
+            0, -25, -100, -100, -100,
+            0, -25, -100, -100, -100,
+            0, -25, -100, -100, -100,
+        }};
+        btHeightfieldTerrainShape shape(5, 5, heightfieldData.data(), 1, 0, 0, 2, PHY_FLOAT, false);
+        shape.setLocalScaling(btVector3(128, 128, 1));
+
+        mNavigator->addAgent(mAgentId, mStart, mAgentHalfExtents, mAgentCrowdParams);
+        mNavigator->addObject(1, shape, btTransform::getIdentity());
+        mNavigator->update(mPlayerPosition);
+        mNavigator->wait();
+
+        mNavigator->updateAgentTarget(mAgentId, mEnd, Flag_walk);
+
+        auto agentPosition = mNavigator->getAgentPosition(mAgentId);
+
+        for (int i = 0; i < 191; ++i)
+        {
+            mNavigator->updateCrowd(1.0f / 25.0f);
+            agentPosition = mNavigator->getAgentPosition(mAgentId);
+        }
+
+        EXPECT_LE((agentPosition - mEnd).length(), 10.0f);
     }
 }

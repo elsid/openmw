@@ -35,7 +35,7 @@ namespace
 namespace SceneUtil
 {
     osg::ref_ptr<osg::Group> createAgentPathGroup(const std::deque<osg::Vec3f>& path,
-            const osg::Vec3f& halfExtents, const osg::Vec3f& start, const osg::Vec3f& end,
+            const osg::Vec3f& halfExtents, const osg::Vec3f& start, const osg::Vec3f& target, const osg::Vec3f& end,
             const DetourNavigator::Settings& settings)
     {
         using namespace DetourNavigator;
@@ -48,9 +48,11 @@ namespace SceneUtil
         const auto agentHeight = 2.0f * halfExtents.z();
         const auto agentClimb = settings.mMaxClimb;
         const auto startColor = duRGBA(128, 25, 0, 192);
+        const auto targetColor = duRGBA(0, 25, 128, 192);
         const auto endColor = duRGBA(51, 102, 0, 129);
 
         drawAgent(debugDraw, start, agentRadius, agentHeight, agentClimb, startColor);
+        drawAgent(debugDraw, target, agentRadius, agentHeight, agentClimb, targetColor);
         drawAgent(debugDraw, end, agentRadius, agentHeight, agentClimb, endColor);
 
         const auto pathColor = duRGBA(0, 0, 0, 220);

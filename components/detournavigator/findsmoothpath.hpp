@@ -13,6 +13,8 @@
 
 #include <boost/optional.hpp>
 
+#include <DetourNavMesh.h>
+
 #include <osg/Vec3f>
 
 #include <vector>

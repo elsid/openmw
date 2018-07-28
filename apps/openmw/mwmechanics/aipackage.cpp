@@ -103,12 +103,6 @@ bool MWMechanics::AiPackage::pathTo(const MWWorld::Ptr& actor, const osg::Vec3f&
 
     const ESM::Position pos = actor.getRefData().getPosition(); //position of the actor
 
-    {
-        const auto halfExtents = MWBase::Environment::get().getWorld()->getHalfExtents(actor);
-        MWBase::Environment::get().getWorld()->updateActorPath(actor, mPathFinder.getPath(), halfExtents,
-            pos.asVec3(), dest);
-    }
-
     /// Stops the actor when it gets too close to a unloaded cell
     //... At current time, this test is unnecessary. AI shuts down when actor is more than 7168
     //... units from player, and exterior cells are 8192 units long and wide.
@@ -195,14 +189,24 @@ bool MWMechanics::AiPackage::pathTo(const MWWorld::Ptr& actor, const osg::Vec3f&
         if (mRotateOnTheRunChecks > 0) mRotateOnTheRunChecks--;
     }
 
+    const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
+
+    navigator->updateAgentTarget(reinterpret_cast<std::size_t>(actor.getBase()),
+        mPathFinder.getPath().front(), getNavigatorFlags(actor));
+
     // turn to next path point by X,Z axes
-    zTurn(actor, mPathFinder.getZAngleToNext(pos.pos[0], pos.pos[1]));
-    smoothTurn(actor, mPathFinder.getXAngleToNext(pos.pos[0], pos.pos[1], pos.pos[2]), 0);
+    const auto target = navigator->getAgentPosition(reinterpret_cast<std::size_t>(actor.getBase()));
+    zTurn(actor, getZAngleToPoint(pos.asVec3(), target), 0);
+    smoothTurn(actor, getXAngleToPoint(pos.asVec3(), target), 0, 0);
 
     mObstacleCheck.update(actor, duration);
 
     // handle obstacles on the way
     evadeObstacles(actor);
+
+    const auto halfExtents = MWBase::Environment::get().getWorld()->getHalfExtents(actor);
+    MWBase::Environment::get().getWorld()->updateActorPath(actor, mPathFinder.getPath(), halfExtents,
+        pos.asVec3(), target, dest);
 
     return false;
 }

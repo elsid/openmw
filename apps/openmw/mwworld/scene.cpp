@@ -6,7 +6,10 @@
 #include <BulletCollision/CollisionShapes/btCompoundShape.h>
 #include <BulletCollision/CollisionShapes/btHeightfieldTerrainShape.h>
 
+#include <DetourCrowd.h>
+
 #include <components/debug/debuglog.hpp>
+
 #include <components/loadinglistener/loadinglistener.hpp>
 #include <components/misc/resourcehelpers.hpp>
 #include <components/settings/settings.hpp>
@@ -37,6 +40,7 @@
 #include "cellvisitors.hpp"
 #include "cellstore.hpp"
 #include "cellpreloader.hpp"
+#include "crowdagentparams.hpp"
 
 namespace
 {
@@ -97,8 +101,14 @@ namespace
         else if (const auto actor = physics.getActor(ptr))
         {
             const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
-            const auto playerHalfExtents = physics.getHalfExtents(MWBase::Environment::get().getWorld()->getPlayerPtr());
-            navigator->addAgent(playerHalfExtents);
+            const auto player = MWBase::Environment::get().getWorld()->getPlayerPtr();
+            const auto playerHalfExtents = physics.getHalfExtents(player);
+            navigator->addAgent(
+                reinterpret_cast<std::size_t>(ptr.getBase()),
+                ptr.getRefData().getPosition().asVec3(),
+                playerHalfExtents,
+                makeCrowdAgentParams(ptr, actor->getHalfExtents(), navigator->getSettings())
+            );
         }
 
         if (useAnim)
@@ -270,7 +280,7 @@ namespace MWWorld
         const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
         ListAndResetObjectsVisitor visitor;
 
-        (*iter)->forEach<ListAndResetObjectsVisitor>(visitor);
+        (*iter)->forEach(visitor);
         const auto player = MWBase::Environment::get().getWorld()->getPlayerPtr();
         const auto playerHalfExtents = mPhysics->getHalfExtents(player);
         for (const auto& ptr : visitor.mObjects)
@@ -279,7 +289,7 @@ namespace MWWorld
                 navigator->removeObject(reinterpret_cast<std::size_t>(object));
             else if (const auto actor = mPhysics->getActor(ptr))
             {
-                navigator->removeAgent(playerHalfExtents);
+                navigator->removeAgent(reinterpret_cast<std::size_t>(ptr.getBase()), playerHalfExtents);
                 mRendering.removeActorPath(ptr);
             }
             mPhysics->remove(ptr);
@@ -747,7 +757,7 @@ namespace MWWorld
         else if (const auto actor = mPhysics->getActor(ptr))
         {
             const auto playerHalfExtents = mPhysics->getHalfExtents(MWBase::Environment::get().getWorld()->getPlayerPtr());
-            navigator->removeAgent(playerHalfExtents);
+            navigator->removeAgent(reinterpret_cast<std::size_t>(ptr.getBase()), playerHalfExtents);
         }
         mPhysics->remove(ptr);
         mRendering.removeObject (ptr);

@@ -1402,9 +1402,9 @@ namespace MWRender
     }
 
     void RenderingManager::updateActorPath(const MWWorld::ConstPtr& actor, const std::deque<osg::Vec3f>& path,
-            const osg::Vec3f& halfExtents, const osg::Vec3f& start, const osg::Vec3f& end) const
+            const osg::Vec3f& halfExtents, const osg::Vec3f& start, const osg::Vec3f& target, const osg::Vec3f& end) const
     {
-        mActorsPaths->update(actor, path, halfExtents, start, end, mNavigator.getSettings());
+        mActorsPaths->update(actor, path, halfExtents, start, target, end, mNavigator.getSettings());
     }
 
     void RenderingManager::removeActorPath(const MWWorld::ConstPtr& actor) const

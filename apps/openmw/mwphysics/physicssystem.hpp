@@ -179,6 +179,13 @@ namespace MWPhysics
                 std::for_each(mAnimatedObjects.begin(), mAnimatedObjects.end(), function);
             }
 
+            template <class Function>
+            void forEachActor(Function&& function) const
+            {
+                using V = decltype(mActors)::value_type;
+                std::for_each(mActors.begin(), mActors.end(), [&] (const V& v) { function(*v.second); });
+            }
+
         private:
 
             void updateWater();

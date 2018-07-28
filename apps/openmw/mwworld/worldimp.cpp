@@ -6,6 +6,8 @@
 #include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
 #include <BulletCollision/CollisionShapes/btCompoundShape.h>
 
+#include <DetourCrowd.h>
+
 #include <components/debug/debuglog.hpp>
 
 #include <components/esm/esmreader.hpp>
@@ -67,6 +69,7 @@
 
 #include "contentloader.hpp"
 #include "esmloader.hpp"
+#include "crowdagentparams.hpp"
 
 namespace
 {
@@ -175,11 +178,13 @@ namespace MWWorld
         navigatorSettings.mCellSize = Settings::Manager::getFloat("cell size", "Navigator");
         navigatorSettings.mDetailSampleDist = Settings::Manager::getFloat("detail sample dist", "Navigator");
         navigatorSettings.mDetailSampleMaxError = Settings::Manager::getFloat("detail sample max error", "Navigator");
+        navigatorSettings.mMaxAgentRadius = Settings::Manager::getInt("max agent radius", "Navigator");
         navigatorSettings.mMaxClimb = Settings::Manager::getFloat("max climb", "Navigator");
         navigatorSettings.mMaxSimplificationError = Settings::Manager::getFloat("max simplification error", "Navigator");
         navigatorSettings.mMaxSlope = Settings::Manager::getFloat("max slope", "Navigator");
         navigatorSettings.mRecastScaleFactor = Settings::Manager::getFloat("recast scale factor", "Navigator");
         navigatorSettings.mTileSize = Settings::Manager::getFloat("tile size", "Navigator");
+        navigatorSettings.mMaxAgents = Settings::Manager::getInt("max agents", "Navigator");
         navigatorSettings.mMaxEdgeLen = Settings::Manager::getInt("max edge len", "Navigator");
         navigatorSettings.mMaxNavMeshQueryNodes = Settings::Manager::getInt("max nav mesh query nodes", "Navigator");
         navigatorSettings.mMaxVertsPerPoly = Settings::Manager::getInt("max verts per poly", "Navigator");
@@ -1259,6 +1264,7 @@ namespace MWWorld
                     mRendering->updatePtr(ptr, newPtr);
                     MWBase::Environment::get().getSoundManager()->updatePtr (ptr, newPtr);
                     mPhysics->updatePtr(ptr, newPtr);
+                    mNavigator->updateAgentId(reinterpret_cast<std::size_t>(ptr.getBase()), reinterpret_cast<std::size_t>(newPtr.getBase()));
 
                     MWBase::MechanicsManager *mechMgr = MWBase::Environment::get().getMechanicsManager();
                     mechMgr->updateCell(ptr, newPtr);
@@ -1524,8 +1530,14 @@ namespace MWWorld
             navigatorObjectsUpdated = mNavigator->updateObject(std::size_t(object), shapes,
                     object->getCollisionObject()->getWorldTransform()) || navigatorObjectsUpdated;
         });
+        mPhysics->forEachActor([&] (MWPhysics::Actor& actor)
+        {
+            mNavigator->updateAgent(reinterpret_cast<std::size_t>(actor.getPtr().getBase()), actor.getPosition(),
+                                    actor.getPtr().getClass().getSpeed(actor.getPtr()));
+        });
         if (navigatorObjectsUpdated)
             mNavigator->update(getPlayerPtr().getRefData().getPosition().asVec3());
+        mNavigator->updateCrowd(duration);
     }
 
     bool World::castRay (float x1, float y1, float z1, float x2, float y2, float z2, bool ignoreDoors)
@@ -2308,7 +2320,10 @@ namespace MWWorld
         {
             // Remove the old CharacterController
             MWBase::Environment::get().getMechanicsManager()->remove(getPlayerPtr());
-            mNavigator->removeAgent(mPhysics->getHalfExtents(getPlayerPtr()));
+            mNavigator->removeAgent(
+                reinterpret_cast<std::size_t>(getPlayerPtr().getBase()),
+                mPhysics->getHalfExtents(getPlayerPtr())
+            );
             mPhysics->remove(getPlayerPtr());
             mRendering->removePlayer(getPlayerPtr());
 
@@ -2344,7 +2359,14 @@ namespace MWWorld
 
         applyLoopingParticles(player);
 
-        mNavigator->addAgent(mPhysics->getHalfExtents(getPlayerPtr()));
+        const auto halfExtents = mPhysics->getHalfExtents(player);
+
+        mNavigator->addAgent(
+            reinterpret_cast<std::size_t>(player.getBase()),
+            player.getRefData().getPosition().asVec3(),
+            halfExtents,
+            makeCrowdAgentParams(player, halfExtents, mNavigator->getSettings())
+        );
     }
 
     int World::canRest ()
@@ -3682,9 +3704,9 @@ namespace MWWorld
     }
 
     void World::updateActorPath(const MWWorld::ConstPtr& actor, const std::deque<osg::Vec3f>& path,
-            const osg::Vec3f& halfExtents, const osg::Vec3f& start, const osg::Vec3f& end) const
+            const osg::Vec3f& halfExtents, const osg::Vec3f& start, const osg::Vec3f& target, const osg::Vec3f& end) const
     {
-        mRendering->updateActorPath(actor, path, halfExtents, start, end);
+        mRendering->updateActorPath(actor, path, halfExtents, start, target, end);
     }
 
 }

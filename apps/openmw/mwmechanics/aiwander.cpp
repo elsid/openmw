@@ -5,6 +5,7 @@
 #include <components/debug/debuglog.hpp>
 #include <components/misc/rng.hpp>
 #include <components/esm/aisequence.hpp>
+#include <components/detournavigator/navigator.hpp>
 
 #include "../mwbase/world.hpp"
 #include "../mwbase/environment.hpp"

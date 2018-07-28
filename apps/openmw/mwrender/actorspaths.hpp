@@ -26,7 +26,7 @@ namespace MWRender
         bool toggle();
 
         void update(const MWWorld::ConstPtr& actor, const std::deque<osg::Vec3f>& path,
-                const osg::Vec3f& halfExtents, const osg::Vec3f& start, const osg::Vec3f& end,
+                const osg::Vec3f& halfExtents, const osg::Vec3f& start, const osg::Vec3f& target, const osg::Vec3f& end,
                 const DetourNavigator::Settings& settings);
 
         void remove(const MWWorld::ConstPtr& actor);

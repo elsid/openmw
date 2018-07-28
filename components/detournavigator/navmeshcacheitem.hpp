@@ -13,8 +13,8 @@ namespace DetourNavigator
         std::size_t mGeneration;
         std::atomic_size_t mNavMeshRevision;
 
-        NavMeshCacheItem(const NavMeshPtr& value, std::size_t generation)
-            : mValue(value), mGeneration(generation), mNavMeshRevision(0) {}
+        NavMeshCacheItem(const NavMeshPtr& value, const CrowdPtr& crowd, std::size_t generation)
+            : mValue(value, crowd), mGeneration(generation), mNavMeshRevision(0) {}
     };
 }
 

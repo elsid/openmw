@@ -30,9 +30,10 @@ namespace DetourNavigator
     public:
         Navigator(const Settings& settings);
 
-        void addAgent(const osg::Vec3f& agentHalfExtents);
+        void addAgent(const std::size_t id, const osg::Vec3f& position, const osg::Vec3f& agentHalfExtents,
+                      const dtCrowdAgentParams& crowdParams);
 
-        void removeAgent(const osg::Vec3f& agentHalfExtents);
+        void removeAgent(const std::size_t id, const osg::Vec3f& agentHalfExtents);
 
         bool addObject(std::size_t id, const ObjectShapes& shapes, const btTransform& transform);
 
@@ -55,6 +56,18 @@ namespace DetourNavigator
         std::map<osg::Vec3f, std::shared_ptr<NavMeshCacheItem>> getNavMeshes() const;
 
         const Settings& getSettings() const;
+
+        void updateCrowd(const float duration);
+
+        void updateAgent(const std::size_t id, const osg::Vec3f& position, const float speed);
+
+        void updateAgentId(const std::size_t id, const std::size_t newId);
+
+        bool updateAgentTarget(const std::size_t id, const osg::Vec3f& position, const Flags includeFlags);
+
+        osg::Vec3f getAgentTarget(const std::size_t id) const;
+
+        osg::Vec3f getAgentPosition(const std::size_t id) const;
 
         void wait();
 

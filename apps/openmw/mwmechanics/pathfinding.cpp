@@ -237,11 +237,7 @@ namespace MWMechanics
         if(mPath.empty())
             return 0.;
 
-        const auto& nextPoint = mPath.front();
-        const float directionX = nextPoint.x() - x;
-        const float directionY = nextPoint.y() - y;
-
-        return std::atan2(directionX, directionY);
+        return getZAngleToPoint(osg::Vec3f(x, y, 0), mPath.front());
     }
 
     float PathFinder::getXAngleToNext(float x, float y, float z) const
@@ -251,9 +247,7 @@ namespace MWMechanics
         if(mPath.empty())
             return 0.;
 
-        const osg::Vec3f dir = mPath.front() - osg::Vec3f(x, y, z);
-
-        return getXAngleToDir(dir);
+        return getXAngleToPoint(osg::Vec3f(x, y, z), mPath.front());
     }
 
     void PathFinder::update(const osg::Vec3f& position, const float tolerance)

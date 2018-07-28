@@ -117,7 +117,7 @@ include_directories(
     ${FFmpeg_INCLUDE_DIRS}
 )
 
-find_package(RecastNavigation COMPONENTS DebugUtils Detour Recast REQUIRED)
+find_package(RecastNavigation COMPONENTS DebugUtils DetourCrowd Detour Recast REQUIRED)
 
 include_directories(SYSTEM ${RecastNavigation_INCLUDE_DIRS})
 

@@ -212,7 +212,7 @@ include_directories(${Bullet_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(components STATIC ${COMPONENT_FILES} ${MOC_SRCS} ${ESM_UI_HDR})
 
-find_package(RecastNavigation COMPONENTS DebugUtils Detour Recast REQUIRED)
+find_package(RecastNavigation COMPONENTS DebugUtils DetourCrowd Detour Recast REQUIRED)
 
 include_directories(SYSTEM ${RecastNavigation_INCLUDE_DIRS})
 

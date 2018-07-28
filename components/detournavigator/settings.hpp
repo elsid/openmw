@@ -15,12 +15,14 @@ namespace DetourNavigator
         float mCellSize;
         float mDetailSampleDist;
         float mDetailSampleMaxError;
+        float mMaxAgentRadius;
         float mMaxClimb;
         float mMaxSimplificationError;
         float mMaxSlope;
         float mRecastScaleFactor;
         float mTileSize;
         int mBorderSize;
+        int mMaxAgents;
         int mMaxEdgeLen;
         int mMaxNavMeshQueryNodes;
         int mMaxVertsPerPoly;

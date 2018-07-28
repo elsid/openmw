@@ -3,6 +3,7 @@
 #include "settingsutils.hpp"
 
 #include <Recast.h>
+#include <DetourCrowd.h>
 
 namespace DetourNavigator
 {
@@ -12,14 +13,16 @@ namespace DetourNavigator
     {
     }
 
-    void Navigator::addAgent(const osg::Vec3f& agentHalfExtents)
+    void Navigator::addAgent(const std::size_t id, const osg::Vec3f& position, const osg::Vec3f& agentHalfExtents,
+            const dtCrowdAgentParams& crowdParams)
     {
         ++mAgents[agentHalfExtents];
-        mNavMeshManager.addAgent(agentHalfExtents);
+        mNavMeshManager.addAgent(id, position, agentHalfExtents, crowdParams);
     }
 
-    void Navigator::removeAgent(const osg::Vec3f& agentHalfExtents)
+    void Navigator::removeAgent(const std::size_t id, const osg::Vec3f& agentHalfExtents)
     {
+        mNavMeshManager.removeAgent(id);
         const auto it = mAgents.find(agentHalfExtents);
         if (it == mAgents.end() || --it->second)
             return;
@@ -99,6 +102,36 @@ namespace DetourNavigator
     {
         for (const auto& v : mAgents)
             mNavMeshManager.update(playerPosition, v.first);
+    }
+
+    void Navigator::updateCrowd(const float duration)
+    {
+        mNavMeshManager.updateCrowd(duration);
+    }
+
+    void Navigator::updateAgent(const std::size_t id, const osg::Vec3f& position, const float speed)
+    {
+        mNavMeshManager.updateAgent(id, position, speed);
+    }
+
+    void Navigator::updateAgentId(const std::size_t id, const std::size_t newId)
+    {
+        mNavMeshManager.updateAgentId(id, newId);
+    }
+
+    bool Navigator::updateAgentTarget(const std::size_t id, const osg::Vec3f& position, const Flags includeFlags)
+    {
+        return mNavMeshManager.updateAgentTarget(id, position, includeFlags);
+    }
+
+    osg::Vec3f Navigator::getAgentTarget(const std::size_t id) const
+    {
+        return mNavMeshManager.getAgentTarget(id);
+    }
+
+    osg::Vec3f Navigator::getAgentPosition(const std::size_t id) const
+    {
+        return mNavMeshManager.getAgentPosition(id);
     }
 
     std::map<osg::Vec3f, std::shared_ptr<NavMeshCacheItem>> Navigator::getNavMeshes() const

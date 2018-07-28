@@ -3,6 +3,11 @@
 #include "makenavmesh.hpp"
 #include "settings.hpp"
 
+#include <DetourCrowd.h>
+#include <DetourCommon.h>
+#include <DetourNavMesh.h>
+#include <DetourNavMeshQuery.h>
+
 #include <iostream>
 
 namespace
@@ -23,6 +28,40 @@ namespace
             getManhattanDistance(position, playerTile),
             getManhattanDistance(position, TilePosition {0, 0})
         );
+    }
+
+    void updateAgent(dtCrowd& crowd, const int idx)
+    {
+        const auto agent = crowd.getEditableAgent(idx);
+
+        if (!agent->active)
+            return;
+
+        float nearest[3];
+        dtPolyRef ref = 0;
+        dtVcopy(nearest, agent->npos);
+        const auto status = crowd.getNavMeshQuery()->findNearestPoly(agent->npos, crowd.getQueryHalfExtents(),
+            crowd.getFilter(agent->params.queryFilterType), &ref, nearest);
+        if (dtStatusFailed(status))
+        {
+            dtVcopy(nearest, agent->npos);
+            ref = 0;
+        }
+
+        agent->corridor.reset(ref, nearest);
+        agent->boundary.reset();
+        agent->partial = false;
+        agent->topologyOptTime = 0;
+        agent->targetReplanTime = 0;
+        agent->nneis = 0;
+        dtVset(agent->dvel, 0,0,0);
+        dtVset(agent->nvel, 0,0,0);
+        dtVset(agent->vel, 0,0,0);
+        dtVcopy(agent->npos, nearest);
+        agent->desiredSpeed = 0;
+        agent->state = ref ? DT_CROWDAGENT_STATE_WALKING : DT_CROWDAGENT_STATE_INVALID;
+        agent->targetState = DT_CROWDAGENT_TARGET_NONE;
+        agent->active = true;
     }
 }
 
@@ -133,6 +172,14 @@ namespace DetourNavigator
                 const auto recastMesh = mRecastMeshManager.getMesh(job.mChangedTile);
                 const auto status = updateNavMesh(job.mAgentHalfExtents, recastMesh, job.mChangedTile, playerTile,
                                                   mSettings, *job.mNavMeshCacheItem);
+
+                {
+                    const auto locked = job.mNavMeshCacheItem->mValue.lock();
+                    auto& crowd = locked.crowd();
+                    for (int i = 0, count = crowd.getAgentCount(); i < count; ++i)
+                        updateAgent(crowd, i);
+                }
+
                 if (recastMesh && mSettings.mEnableWriteRecastMeshToFile)
                     writeToFile(*recastMesh, mSettings.mRecastMeshPathPrefix + std::to_string(job.mChangedTile.x())
                                 + "_" + std::to_string(job.mChangedTile.y()) + "_", recastMeshRevision);
