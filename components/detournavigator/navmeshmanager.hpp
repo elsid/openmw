@@ -42,6 +42,11 @@ namespace DetourNavigator
 
         void updateAgentId(const std::size_t id, const std::size_t newId);
 
+        bool addWater(const osg::Vec2i& cellPosition, const int cellSize, const btScalar level,
+                      const btTransform& transform);
+
+        bool removeWater(const osg::Vec2i& cellPosition);
+
         void reset(const osg::Vec3f& agentHalfExtents);
 
         void update(const osg::Vec3f& playerPosition, const osg::Vec3f& agentHalfExtents);
@@ -80,6 +85,10 @@ namespace DetourNavigator
         std::shared_ptr<NavMeshCacheItem> getCached(const osg::Vec3f& agentHalfExtents) const;
 
         void addChangedTiles(const btCollisionShape& shape, const btTransform& transform, const ChangeType changeType);
+
+        void addChangedTiles(const int cellSize, const btTransform& transform, const ChangeType changeType);
+
+        void addChangedTile(const TilePosition& v, const ChangeType changeType);
     };
 }
 

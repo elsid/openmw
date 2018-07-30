@@ -6,7 +6,6 @@
 #include "navmeshmanager.hpp"
 #include "settings.hpp"
 #include "settingsutils.hpp"
-#include "water.hpp"
 
 namespace DetourNavigator
 {
@@ -14,14 +13,9 @@ namespace DetourNavigator
     {
         const btCollisionShape& mShape;
         const btCollisionShape* mAvoid;
-        const btCollisionShape* mWater;
 
         ObjectShapes(const btCollisionShape& shape, const btCollisionShape* avoid = nullptr)
-            : mShape(shape), mAvoid(avoid), mWater(nullptr)
-        {}
-
-        ObjectShapes(const btHeightfieldTerrainShape& shape, const Water& water)
-            : mShape(shape), mAvoid(nullptr), mWater(&water.getImpl())
+            : mShape(shape), mAvoid(avoid)
         {}
     };
 
@@ -40,6 +34,11 @@ namespace DetourNavigator
         bool updateObject(std::size_t id, const ObjectShapes& shapes, const btTransform& transform);
 
         bool removeObject(std::size_t id);
+
+        bool addWater(const osg::Vec2i& cellPosition, const int cellSize, const float level,
+                      const btTransform& transform);
+
+        bool removeWater(const osg::Vec2i& cellPosition);
 
         void update(const osg::Vec3f& playerPosition);
 

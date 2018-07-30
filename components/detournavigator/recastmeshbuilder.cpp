@@ -66,6 +66,8 @@ namespace DetourNavigator
     {
         return addObject(shape, transform, makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
         {
+            if (isUnderwater(triangle, transform))
+                return;
             for (std::size_t i = 3; i > 0; --i)
                 addTriangleVertex(transform(triangle[i - 1]) * mSettings.mRecastScaleFactor);
             mAreaTypes.push_back(areaType);
@@ -77,6 +79,8 @@ namespace DetourNavigator
     {
         return addObject(shape, transform, makeProcessTriangleCallback([&] (btVector3* triangle, int, int)
         {
+            if (isUnderwater(triangle, transform))
+                return;
             for (std::size_t i = 0; i < 3; ++i)
                 addTriangleVertex(transform(triangle[i]) * mSettings.mRecastScaleFactor);
             mAreaTypes.push_back(areaType);
@@ -85,19 +89,19 @@ namespace DetourNavigator
 
     void RecastMeshBuilder::addObject(const btBoxShape& shape, const btTransform& transform, const AreaType areaType)
     {
-        const auto indexOffset = int(mVertices.size() / 3);
+        if (isUnderwater(shape, transform))
+            return;
 
-        for (int vertex = 0; vertex < shape.getNumVertices(); ++vertex)
+        const auto indexOffset = static_cast<int>(mVertices.size() / 3);
+
+        for (int vertex = 0, count = shape.getNumVertices(); vertex < count; ++vertex)
         {
             btVector3 position;
             shape.getVertex(vertex, position);
             addVertex(transform(position) * mSettings.mRecastScaleFactor);
         }
 
-        for (int vertex = 0; vertex < 12; ++vertex)
-            mAreaTypes.push_back(areaType);
-
-        static const std::array<int, 36> indices {{
+        const std::array<int, 36> indices {{
             0, 2, 3,
             3, 1, 0,
             0, 4, 6,
@@ -114,6 +118,44 @@ namespace DetourNavigator
 
         std::transform(indices.begin(), indices.end(), std::back_inserter(mIndices),
             [&] (int index) { return index + indexOffset; });
+
+        std::generate_n(std::back_inserter(mAreaTypes), 12, [=] { return areaType; });
+    }
+
+    void RecastMeshBuilder::addWater(const int cellSize, const btScalar level, const btTransform& transform)
+    {
+        const auto halfCellSize = cellSize / 2;
+        Water water;
+        water.mHalfCellSize = halfCellSize;
+        water.mLevel = level;
+        water.mInversedTransform = transform.inverse();
+        mWater.push_back(water);
+
+        const auto indexOffset = static_cast<int>(mVertices.size() / 3);
+
+        const std::array<btVector3, 4> vertices {{
+            btVector3(-halfCellSize, -halfCellSize, 0),
+            btVector3(-halfCellSize, halfCellSize, 0),
+            btVector3(halfCellSize, halfCellSize, 0),
+            btVector3(halfCellSize, -halfCellSize, 0),
+        }};
+
+        std::for_each(vertices.begin(), vertices.end(),
+            [&] (const btVector3& vertex)
+            {
+                const auto transformed = transform(vertex);
+                addVertex(btVector3(transformed.x(), transformed.y(), level) * mSettings.mRecastScaleFactor);
+            });
+
+        const std::array<int, 6> indices {{
+            0, 1, 2,
+            0, 2, 3,
+        }};
+
+        std::transform(indices.begin(), indices.end(), std::back_inserter(mIndices),
+            [&] (const int index) { return index + indexOffset; });
+
+        std::generate_n(std::back_inserter(mAreaTypes), 2, [] { return AreaType_water; });
     }
 
     std::shared_ptr<RecastMesh> RecastMeshBuilder::create() const
@@ -126,6 +168,7 @@ namespace DetourNavigator
         mIndices.clear();
         mVertices.clear();
         mAreaTypes.clear();
+        mWater.clear();
     }
 
     void RecastMeshBuilder::addObject(const btConcaveShape& shape, const btTransform& transform,
@@ -165,5 +208,34 @@ namespace DetourNavigator
         mVertices.push_back(worldPosition.x());
         mVertices.push_back(worldPosition.z());
         mVertices.push_back(worldPosition.y());
+    }
+
+    bool RecastMeshBuilder::isUnderwater(const btVector3* triangle, const btTransform& transform) const
+    {
+        return std::all_of(triangle, triangle + 3,
+            [&] (const btVector3& vertex) { return isUnderwaterWater(transform(vertex)); });
+    }
+
+    bool RecastMeshBuilder::isUnderwater(const btBoxShape& box, const btTransform& transform) const
+    {
+        bool result = true;
+        for (int vertex = 0, count = box.getNumVertices(); result && vertex < count; ++vertex)
+        {
+            btVector3 position;
+            box.getVertex(vertex, position);
+            result = isUnderwaterWater(transform(position));
+        }
+        return result;
+    }
+
+    bool RecastMeshBuilder::isUnderwaterWater(const btVector3& position) const
+    {
+        return std::any_of(mWater.begin(), mWater.end(), [&] (const Water& water)
+        {
+            const auto localPosition = water.mInversedTransform(position);
+            return -water.mHalfCellSize <= localPosition.x() && localPosition.x() <= water.mHalfCellSize
+                && -water.mHalfCellSize <= localPosition.y() && localPosition.y() <= water.mHalfCellSize
+                && position.z() <= water.mLevel;
+        });
     }
 }

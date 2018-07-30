@@ -18,6 +18,11 @@ namespace DetourNavigator
         bool updateObject(std::size_t id, const btCollisionShape& shape, const btTransform& transform,
                           const AreaType areaType);
 
+        bool addWater(const osg::Vec2i& cellPosition, const int cellSize, const btScalar level,
+                      const btTransform& transform);
+
+        boost::optional<RecastMeshManager::Water> removeWater(const osg::Vec2i& cellPosition);
+
         boost::optional<RecastMeshManager::Object> removeObject(std::size_t id);
 
         std::shared_ptr<RecastMesh> getMesh();

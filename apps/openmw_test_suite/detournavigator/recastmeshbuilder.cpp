@@ -392,4 +392,22 @@ namespace
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({0, 1, 2, 3, 4, 5}));
         EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>({AreaType_ground, AreaType_null}));
     }
+
+    TEST_F(DetourNavigatorRecastMeshBuilderTest, add_water_should_produce_two_triangles)
+    {
+        RecastMeshBuilder builder(mSettings, mBounds);
+        builder.addWater(1000, 10, btTransform(btMatrix3x3::getIdentity(), btVector3(100, 200, 300)));
+        const auto recastMesh = builder.create();
+        EXPECT_EQ(recastMesh->getVertices(), std::vector<float>({
+            -400, 10, -300,
+            -400, 10, 700,
+            600, 10, 700,
+            600, 10, -300,
+        }));
+        EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({
+            0, 1, 2,
+            0, 2, 3,
+        }));
+        EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>(2, AreaType_water));
+    }
 }

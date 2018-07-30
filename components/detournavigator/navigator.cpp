@@ -42,19 +42,6 @@ namespace DetourNavigator
                 result = true;
             }
         }
-        if (shapes.mWater)
-        {
-            const auto waterId = reinterpret_cast<std::size_t>(shapes.mWater);
-            const btTransform waterTransform(
-                btMatrix3x3::getIdentity(),
-                btVector3(transform.getOrigin().x(), transform.getOrigin().y(), 0)
-            );
-            if (mNavMeshManager.addObject(waterId, *shapes.mWater, waterTransform, AreaType_water))
-            {
-                updateWaterShapeId(id, waterId);
-                result = true;
-            }
-        }
         return result;
     }
 
@@ -67,19 +54,6 @@ namespace DetourNavigator
             if (mNavMeshManager.updateObject(avoidId, *shapes.mAvoid, transform, AreaType_null))
             {
                 updateAvoidShapeId(id, avoidId);
-                result = true;
-            }
-        }
-        if (shapes.mWater)
-        {
-            const auto waterId = reinterpret_cast<std::size_t>(shapes.mWater);
-            const btTransform waterTransform(
-                btMatrix3x3::getIdentity(),
-                btVector3(transform.getOrigin().x(), transform.getOrigin().y(), 0)
-            );
-            if (mNavMeshManager.updateObject(waterId, *shapes.mWater, waterTransform, AreaType_water))
-            {
-                updateWaterShapeId(id, waterId);
                 result = true;
             }
         }
@@ -96,6 +70,16 @@ namespace DetourNavigator
         if (water != mWaterIds.end())
             result = mNavMeshManager.removeObject(water->second) || result;
         return result;
+    }
+
+    bool Navigator::addWater(const osg::Vec2i& cellPosition, const int cellSize, const float level, const btTransform& transform)
+    {
+        return mNavMeshManager.addWater(cellPosition, cellSize, level, transform);
+    }
+
+    bool Navigator::removeWater(const osg::Vec2i& cellPosition)
+    {
+        return mNavMeshManager.removeWater(cellPosition);
     }
 
     void Navigator::update(const osg::Vec3f& playerPosition)

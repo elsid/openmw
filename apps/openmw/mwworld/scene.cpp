@@ -310,7 +310,7 @@ namespace MWWorld
                 {
                     const auto objectId = reinterpret_cast<std::size_t>(heightField);
                     navigator->removeObject(objectId);
-                    mWaterShapes.erase(objectId);
+                    navigator->removeWater(osg::Vec2i(cellX, cellY));
                 }
                 mPhysics->removeHeightField(cellX, cellY);
             }
@@ -365,13 +365,10 @@ namespace MWWorld
                 {
                     if (cell->getCell()->hasWater())
                     {
-                        std::unique_ptr<DetourNavigator::Water> water(new DetourNavigator::Water(
-                            cell->getWaterLevel(), ESM::Land::REAL_SIZE));
-                        const auto objectId = reinterpret_cast<std::size_t>(heightField);
-                        navigator->addObject(objectId,
-                            DetourNavigator::ObjectShapes {*heightField->getShape(), *water},
+                        navigator->addWater(osg::Vec2i(cellX, cellY), ESM::Land::REAL_SIZE,
+                            cell->getWaterLevel(), heightField->getCollisionObject()->getWorldTransform());
+                        navigator->addObject(reinterpret_cast<std::size_t>(heightField), *heightField->getShape(),
                             heightField->getCollisionObject()->getWorldTransform());
-                        mWaterShapes[objectId] = std::move(water);
                     }
                     else
                     {
