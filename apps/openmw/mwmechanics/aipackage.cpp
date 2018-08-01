@@ -5,7 +5,9 @@
 #include <components/esm/loadcell.hpp>
 #include <components/esm/loadland.hpp>
 #include <components/esm/loadmgef.hpp>
+
 #include <components/detournavigator/navigator.hpp>
+#include <components/detournavigator/debug.hpp>
 
 #include "../mwbase/world.hpp"
 #include "../mwbase/environment.hpp"
@@ -24,13 +26,36 @@
 
 #include <osg/Quat>
 
+namespace
+{
+    osg::Vec3f getDirection(const ESM::Position& position)
+    {
+        const auto rot = position.rot;
+        return osg::Quat(rot[0], -osg::X_AXIS, rot[1], -osg::Y_AXIS, rot[2], -osg::Z_AXIS) * osg::Y_AXIS;
+    }
+
+    osg::Vec3f getPosition(const ESM::Position& position)
+    {
+        return osg::Vec3f(position.pos[0], position.pos[1], position.pos[2]);
+    }
+
+    osg::Vec2f getXY(const osg::Vec3f& value)
+    {
+        return osg::Vec2f(value.x(), value.y());
+    }
+
+    float getCos(const osg::Vec2f& lhs, const osg::Vec2f& rhs)
+    {
+        return (lhs * rhs) / (lhs.length() * rhs.length());
+    }
+}
+
 MWMechanics::AiPackage::~AiPackage() {}
 
 MWMechanics::AiPackage::AiPackage() :
     mTimer(AI_REACTION_TIME + 1.0f), // to force initial pathbuild
     mTargetActorRefId(""),
     mTargetActorId(-1),
-    mRotateOnTheRunChecks(0),
     mIsShortcutting(false),
     mShortcutProhibited(false),
     mShortcutFailPos()
@@ -97,116 +122,90 @@ void MWMechanics::AiPackage::reset()
     mObstacleCheck.clear();
 }
 
-bool MWMechanics::AiPackage::pathTo(const MWWorld::Ptr& actor, const osg::Vec3f& dest, float duration, float destTolerance)
+bool MWMechanics::AiPackage::pathTo(const MWWorld::Ptr& actor, const osg::Vec3f& destination, const float duration,
+        const float destinationTolerance)
 {
-    mTimer += duration; //Update timer
+    using DetourNavigator::Flag;
+    using DetourNavigator::Flags;
 
-    const ESM::Position pos = actor.getRefData().getPosition(); //position of the actor
+    mTimer += duration;
+
+    const auto position = actor.getRefData().getPosition().asVec3();
 
     /// Stops the actor when it gets too close to a unloaded cell
     //... At current time, this test is unnecessary. AI shuts down when actor is more than 7168
     //... units from player, and exterior cells are 8192 units long and wide.
     //... But AI processing distance may increase in the future.
-    if (isNearInactiveCell(pos))
+    if (isNearInactiveCell(position))
     {
         actor.getClass().getMovementSettings(actor).mPosition[1] = 0;
         return false;
     }
 
-    // handle path building and shortcutting
-    const osg::Vec3f start = pos.asVec3();
+    const auto pointTolerance = actor.getClass().getSpeed(actor);
 
-    const float distToTarget = distance(start, dest);
-    const bool isDestReached = (distToTarget <= destTolerance);
+    mPathFinder.update(position, pointTolerance, destinationTolerance);
 
-    if (!isDestReached && mTimer > AI_REACTION_TIME)
+    if (mPathFinder.checkPathCompleted())
+    {
+        zTurn(actor, getZAngleToPoint(position, destination));
+        smoothTurn(actor, getXAngleToPoint(position, destination), 0);
+        return true;
+    }
+
+    const auto world = MWBase::Environment::get().getWorld();
+    const auto navigator = world->getNavigator();
+    const Flags navigatorFlags = getNavigatorFlags(actor);
+
+    if (mTimer >= AI_REACTION_TIME)
     {
         if (actor.getClass().isBipedal(actor))
             openDoors(actor);
 
-        const bool wasShortcutting = mIsShortcutting;
-        bool destInLOS = false;
-
-        const MWWorld::Class& actorClass = actor.getClass();
-        MWBase::World* world = MWBase::Environment::get().getWorld();
-
-        // check if actor can move along z-axis
-        bool actorCanMoveByZ = (actorClass.canSwim(actor) && MWBase::Environment::get().getWorld()->isSwimming(actor))
-            || world->isFlying(actor);
-
-        // Prohibit shortcuts for AiWander, if the actor can not move in 3 dimensions.
-        if (actorCanMoveByZ)
-            mIsShortcutting = shortcutPath(start, dest, actor, &destInLOS, actorCanMoveByZ); // try to shortcut first
-
-        if (!mIsShortcutting)
+        if (doesPathNeedRecalc(position, actor.getCell()))
         {
-            if (wasShortcutting || doesPathNeedRecalc(dest, actor.getCell())) // if need to rebuild path
-            {
-                mPathFinder.buildSyncedPath(start, dest, actor.getCell(), getPathGridGraph(actor.getCell()));
-                mRotateOnTheRunChecks = 3;
-
-                // give priority to go directly on target if there is minimal opportunity
-                if (destInLOS && mPathFinder.getPath().size() > 1)
-                {
-                    // get point just before dest
-                    auto pPointBeforeDest = mPathFinder.getPath().rbegin() + 1;
-
-                    // if start point is closer to the target then last point of path (excluding target itself) then go straight on the target
-                    if (distance(start, dest) <= distance(dest, *pPointBeforeDest))
-                    {
-                        mPathFinder.clearPath();
-                        mPathFinder.addPointToPath(dest);
-                    }
-                }
-            }
-
-            if (!mPathFinder.getPath().empty()) //Path has points in it
-            {
-                const auto& lastPos = mPathFinder.getPath().back(); //Get the end of the proposed path
-
-                if(distance(dest, lastPos) > 100) //End of the path is far from the destination
-                    mPathFinder.addPointToPath(dest); //Adds the final destination to the path, to try to get to where you want to go
-            }
+            mPathFinder.buildPath(position, destination, actor.getCell(),
+                getPathGridGraph(actor.getCell()));
         }
 
         mTimer = 0;
     }
 
-    mPathFinder.update(pos.asVec3(), std::max(destTolerance, DEFAULT_TOLERANCE));
-
-    if (isDestReached || mPathFinder.checkPathCompleted()) // if path is finished
-    {
-        // turn to destination point
-        zTurn(actor, getZAngleToPoint(start, dest));
-        smoothTurn(actor, getXAngleToPoint(start, dest), 0);
-        return true;
-    }
-
-    if (mRotateOnTheRunChecks == 0
-        || isReachableRotatingOnTheRun(actor, *mPathFinder.getPath().begin())) // to prevent circling around a path point
-    {
-        actor.getClass().getMovementSettings(actor).mPosition[1] = 1; // move to the target
-        if (mRotateOnTheRunChecks > 0) mRotateOnTheRunChecks--;
-    }
-
-    const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
-
     navigator->updateAgentTarget(reinterpret_cast<std::size_t>(actor.getBase()),
-        mPathFinder.getPath().front(), getNavigatorFlags(actor));
+        mPathFinder.isPathEmpty() ? destination : mPathFinder.getNextPoint(), navigatorFlags);
 
-    // turn to next path point by X,Z axes
-    const auto target = navigator->getAgentPosition(reinterpret_cast<std::size_t>(actor.getBase()));
-    zTurn(actor, getZAngleToPoint(pos.asVec3(), target), 0);
-    smoothTurn(actor, getXAngleToPoint(pos.asVec3(), target), 0, 0);
+    if (mPathFinder.isPathEmpty() || canActorMoveByZ(actor))
+    {
+        const auto& target = mPathFinder.isPathEmpty() ? destination : mPathFinder.getNextPoint();
+        zTurn(actor, getZAngleToPoint(position, target));
+        smoothTurn(actor, getXAngleToPoint(position, target), 0);
+        actor.getClass().getMovementSettings(actor).mPosition[1] = 1;
+
+        const auto halfExtents = world->getHalfExtents(actor);
+        world->updateActorPath(actor, mPathFinder.getPath(), halfExtents, position, target, destination);
+    }
+    else
+    {
+        const auto target = navigator->getAgentPosition(reinterpret_cast<std::size_t>(actor.getBase()));
+        zTurn(actor, getZAngleToPoint(position, target), 0);
+        smoothTurn(actor, getXAngleToPoint(position, target), 0, 0);
+
+        const auto direction = getXY(getDirection(actor.getRefData().getPosition()));
+        auto toTarget = getXY(target - getPosition(actor.getRefData().getPosition()));
+        toTarget.normalize();
+        if (getCos(direction, toTarget) >= 0)
+            actor.getClass().getMovementSettings(actor).mPosition[1] = 1;
+        else
+            actor.getClass().getMovementSettings(actor).mPosition[1] = 0;
+
+        const auto halfExtents = world->getHalfExtents(actor);
+        world->updateActorPath(actor, mPathFinder.getPath(), halfExtents, position, target, destination);
+    }
 
     mObstacleCheck.update(actor, duration);
 
     // handle obstacles on the way
     evadeObstacles(actor);
-
-    const auto halfExtents = MWBase::Environment::get().getWorld()->getHalfExtents(actor);
-    MWBase::Environment::get().getWorld()->updateActorPath(actor, mPathFinder.getPath(), halfExtents,
-        pos.asVec3(), target, dest);
 
     return false;
 }
@@ -353,13 +352,13 @@ bool MWMechanics::AiPackage::isTargetMagicallyHidden(const MWWorld::Ptr& target)
         || (magicEffects.get(ESM::MagicEffect::Chameleon).getMagnitude() > 75);
 }
 
-bool MWMechanics::AiPackage::isNearInactiveCell(const ESM::Position& actorPos)
+bool MWMechanics::AiPackage::isNearInactiveCell(const osg::Vec3f& position) const
 {
     const ESM::Cell* playerCell(getPlayer().getCell()->getCell());
     if (playerCell->isExterior())
     {
         // get actor's distance from origin of center cell
-        osg::Vec3f actorOffset(actorPos.asVec3());
+        osg::Vec3f actorOffset = position;
         CoordinateConverter(playerCell).toLocal(actorOffset);
 
         // currently assumes 3 x 3 grid for exterior cells, with player at center cell.
@@ -417,4 +416,16 @@ DetourNavigator::Flags MWMechanics::AiPackage::getNavigatorFlags(const MWWorld::
         result |= DetourNavigator::Flag_walk;
 
     return result;
+}
+
+bool MWMechanics::AiPackage::canActorMoveByZ(const MWWorld::Ptr& actor) const
+{
+    const auto world = MWBase::Environment::get().getWorld();
+    const auto& actorClass = actor.getClass();
+    return (actorClass.canSwim(actor) && world->isSwimming(actor)) || world->isFlying(actor);
+}
+
+bool MWMechanics::AiPackage::isDestinationMoved(const osg::Vec3f& destination) const
+{
+    return distance(mPathFinder.getLastPoint(), destination) > 10;
 }

@@ -134,6 +134,10 @@ namespace MWMechanics
 
             DetourNavigator::Flags getNavigatorFlags(const MWWorld::Ptr& actor) const;
 
+            bool canActorMoveByZ(const MWWorld::Ptr& actor) const;
+
+            bool isDestinationMoved(const osg::Vec3f& destination) const;
+
             // TODO: all this does not belong here, move into temporary storage
             PathFinder mPathFinder;
             ObstacleCheck mObstacleCheck;
@@ -143,14 +147,12 @@ namespace MWMechanics
             std::string mTargetActorRefId;
             mutable int mTargetActorId;
 
-            short mRotateOnTheRunChecks; // attempts to check rotation to the pathpoint on the run possibility
-
             bool mIsShortcutting;   // if shortcutting at the moment
             bool mShortcutProhibited; // shortcutting may be prohibited after unsuccessful attempt
             osg::Vec3f mShortcutFailPos; // position of last shortcut fail
 
         private:
-            bool isNearInactiveCell(const ESM::Position& actorPos);
+            bool isNearInactiveCell(const osg::Vec3f& actorPos) const;
     };
 }
 

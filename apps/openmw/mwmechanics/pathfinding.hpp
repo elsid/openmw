@@ -3,6 +3,7 @@
 
 #include <deque>
 #include <cassert>
+#include <limits>
 
 #include <components/detournavigator/flags.hpp>
 #include <components/esm/defs.hpp>
@@ -20,6 +21,11 @@ namespace MWMechanics
     inline float distance(const osg::Vec3f& lhs, const osg::Vec3f& rhs)
     {
         return (lhs - rhs).length();
+    }
+
+    inline float sqrDistanceIgnoreZ(const osg::Vec3f& lhs, const osg::Vec3f& rhs)
+    {
+        return (osg::Vec2f(lhs.x(), lhs.y()) - osg::Vec2f(rhs.x(), rhs.y())).length2();
     }
 
     inline float getZAngleToDir(const osg::Vec3f& dir)
@@ -74,7 +80,8 @@ namespace MWMechanics
                            const MWWorld::CellStore* cell, const PathgridGraph& pathgridGraph);
 
             /// Remove front point if exist and within tolerance
-            void update(const osg::Vec3f& position, const float tolerance = DEFAULT_TOLERANCE);
+            void update(const osg::Vec3f& position, const float pointTolerance = DEFAULT_TOLERANCE,
+                const float destinationTolerance = DEFAULT_TOLERANCE);
 
             bool checkPathCompleted() const
             {
@@ -82,9 +89,9 @@ namespace MWMechanics
             }
 
             /// In radians
-            float getZAngleToNext(float x, float y) const;
+            float getZAngleToNextPoint(const osg::Vec3f& position) const;
 
-            float getXAngleToNext(float x, float y, float z) const;
+            float getXAngleToNextPoint(const osg::Vec3f& position) const;
 
             bool isPathConstructed() const
             {
@@ -94,6 +101,21 @@ namespace MWMechanics
             std::size_t getPathSize() const
             {
                 return mPath.size();
+            }
+
+            bool isPathEmpty() const
+            {
+                return mPath.empty();
+            }
+
+            const osg::Vec3f& getNextPoint() const
+            {
+                return mPath.front();
+            }
+
+            const osg::Vec3f& getLastPoint() const
+            {
+                return mPath.back();
             }
 
             const std::deque<osg::Vec3f>& getPath() const
@@ -115,6 +137,11 @@ namespace MWMechanics
              */
             void buildSyncedPath(const osg::Vec3f& startPoint, const osg::Vec3f& endPoint,
                 const MWWorld::CellStore* cell, const PathgridGraph& pathgridGraph);
+
+            void dropPoint()
+            {
+                mPath.pop_front();
+            }
 
             void addPointToPath(const osg::Vec3f& point)
             {

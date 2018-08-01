@@ -59,16 +59,6 @@ namespace
         return std::pair<int, bool>
             (closestReachableIndex, closestReachableIndex == closestIndex);
     }
-
-    float sqrDistance(const osg::Vec2f& lhs, const osg::Vec2f& rhs)
-    {
-        return (lhs - rhs).length2();
-    }
-
-    float sqrDistanceIgnoreZ(const osg::Vec3f& lhs, const osg::Vec3f& rhs)
-    {
-        return sqrDistance(osg::Vec2f(lhs.x(), lhs.y()), osg::Vec2f(rhs.x(), rhs.y()));
-    }
 }
 
 namespace MWMechanics
@@ -230,29 +220,32 @@ namespace MWMechanics
             mPath.push_back(endPoint);
     }
 
-    float PathFinder::getZAngleToNext(float x, float y) const
+    float PathFinder::getZAngleToNextPoint(const osg::Vec3f& position) const
     {
         // This should never happen (programmers should have an if statement checking
         // isPathConstructed that prevents this call if otherwise).
-        if(mPath.empty())
+        if (mPath.empty())
             return 0.;
 
-        return getZAngleToPoint(osg::Vec3f(x, y, 0), mPath.front());
+        return getZAngleToPoint(position, mPath.front());
     }
 
-    float PathFinder::getXAngleToNext(float x, float y, float z) const
+    float PathFinder::getXAngleToNextPoint(const osg::Vec3f& position) const
     {
         // This should never happen (programmers should have an if statement checking
         // isPathConstructed that prevents this call if otherwise).
-        if(mPath.empty())
+        if (mPath.empty())
             return 0.;
 
-        return getXAngleToPoint(osg::Vec3f(x, y, z), mPath.front());
+        return getXAngleToPoint(position, mPath.front());
     }
 
-    void PathFinder::update(const osg::Vec3f& position, const float tolerance)
+    void PathFinder::update(const osg::Vec3f& position, const float pointTolerance,
+        const float destinationTolerance)
     {
-        if (!mPath.empty() && sqrDistanceIgnoreZ(mPath.front(), position) < tolerance*tolerance)
+        if (mPath.size() > 1 && sqrDistanceIgnoreZ(mPath.front(), position) <= pointTolerance * pointTolerance)
+            mPath.pop_front();
+        else if (mPath.size() == 1 && sqrDistanceIgnoreZ(mPath.front(), position) <= destinationTolerance * destinationTolerance)
             mPath.pop_front();
     }
 
