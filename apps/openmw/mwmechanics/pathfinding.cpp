@@ -83,7 +83,7 @@ namespace MWMechanics
     }
 
     PathFinder::PathFinder()
-        : mCell(NULL)
+        : mCell(nullptr)
     {
     }
 
