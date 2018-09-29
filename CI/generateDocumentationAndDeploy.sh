@@ -30,7 +30,7 @@ set -e
 
 GH_REPO_NAME="openmw.github.io"
 DOXYFILE="$TRAVIS_BUILD_DIR/build/docs/Doxyfile"
-GH_REPO_REF="github.com/openmw/openmw.github.io.git"
+GH_REPO_REF="github.com/elsid/openmw.github.io.git"
 
 # Create a clean working directory for this script.
 mkdir -p code_docs
