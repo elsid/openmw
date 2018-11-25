@@ -659,6 +659,41 @@ private:
 
 // Initialise and enter main loop.
 
+namespace
+{
+    std::map<double, int> makeHist(const std::map<double, int>& values)
+    {
+        if (values.empty())
+            return {};
+        const auto total = std::accumulate(values.begin(), values.end(), 0,
+            [] (int r, const std::map<double, int>::value_type& v) { return r + v.second; });
+        const auto buckets = static_cast<int>(std::floor(std::log2(total))) + 1;
+        const auto min = values.begin()->first;
+        const auto max = values.rbegin()->first;
+        const auto interval = (max - min) / buckets;
+        auto it = values.begin();
+        std::map<double, int> result;
+        for (int i = 0; i < buckets; ++i) {
+            result[min + interval * (i + 1)] = 0;
+            while (it != values.end() && it->first <= min + interval * (i + 1)) {
+                result[min + interval * (i + 1)] += it->second;
+                ++it;
+            }
+        }
+        return result;
+    }
+
+    void print(const std::map<double, int>& values)
+    {
+        const auto total = std::accumulate(values.begin(), values.end(), 0,
+            [] (int r, const std::map<double, int>::value_type& v) { return r + v.second; });
+        std::cout << "Frame time hist: ";
+        for (const auto& v : values)
+            std::cout << v.first << ": " << (static_cast<double>(v.second) / total) << ", ";
+        std::cout << std::endl;
+    }
+}
+
 void OMW::Engine::go()
 {
     assert (!mContentFiles.empty());
@@ -742,9 +777,19 @@ void OMW::Engine::go()
     // Start the main rendering loop
     osg::Timer frameTimer;
     double simulationTime = 0.0;
+    std::map<double, int> timeDist;
+    auto prev = std::chrono::steady_clock::now();
     while (!mViewer->done() && !mEnvironment.getStateManager()->hasQuitRequest())
     {
         double dt = frameTimer.time_s();
+        timeDist[dt] += 1;
+
+        const auto now = std::chrono::steady_clock::now();
+        if (now - prev > std::chrono::seconds(1)) {
+            prev = now;
+            print(makeHist(timeDist));
+        }
+
         frameTimer.setStartTick();
         dt = std::min(dt, 0.2);
 
