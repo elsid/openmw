@@ -318,6 +318,10 @@ namespace Compiler
         const int opcodeDisableExplicit = 0x200031b;
         const int opcodeGetDisabledExplicit = 0x200031c;
         const int opcodeStartScriptExplicit = 0x200031d;
+        const int opcodeSetMovementPosition = 0x2000320;
+        const int opcodeSetMovementPositionExplicit = 0x2000321;
+        const int opcodeSetMovementRotation = 0x2000322;
+        const int opcodeSetMovementRotationExplicit = 0x2000323;
     }
 
     namespace Sky
