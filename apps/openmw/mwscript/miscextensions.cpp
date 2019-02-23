@@ -43,6 +43,8 @@
 #include "../mwmechanics/actorutil.hpp"
 #include "../mwmechanics/movement.hpp"
 
+#include "../mwstate/statemanagerimp.hpp"
+
 #include "interpretercontext.hpp"
 #include "ref.hpp"
 
@@ -1631,6 +1633,16 @@ namespace MWScript
                 }
         };
 
+        class OpQuit : public Interpreter::Opcode0
+        {
+            public:
+
+                virtual void execute (Interpreter::Runtime& /*runtime*/)
+                {
+                    MWBase::Environment::get().getStateManager()->requestQuit();
+                }
+        };
+
         void installOpcodes (Interpreter::Interpreter& interpreter)
         {
             interpreter.installSegment5 (Compiler::Misc::opcodeMenuMode, new OpMenuMode);
@@ -1754,6 +1766,7 @@ namespace MWScript
             interpreter.installSegment5 (Compiler::Misc::opcodeSetMovementPositionExplicit, new OpSetMovementPosition<ExplicitRef>);
             interpreter.installSegment5 (Compiler::Misc::opcodeSetMovementRotation, new OpSetMovementRotation<ImplicitRef>);
             interpreter.installSegment5 (Compiler::Misc::opcodeSetMovementRotationExplicit, new OpSetMovementRotation<ExplicitRef>);
+            interpreter.installSegment5 (Compiler::Misc::opcodeQuit, new OpQuit);
         }
     }
 }
