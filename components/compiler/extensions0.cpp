@@ -339,6 +339,7 @@ namespace Compiler
             extensions.registerInstruction ("togglerecastmesh", "", opcodeToggleRecastMesh);
             extensions.registerInstruction ("setmovementposition", "cf", opcodeSetMovementPosition, opcodeSetMovementPositionExplicit);
             extensions.registerInstruction ("setmovementrotation", "cf", opcodeSetMovementRotation, opcodeSetMovementRotationExplicit);
+            extensions.registerInstruction ("quit", "", opcodeQuit);
         }
     }
 

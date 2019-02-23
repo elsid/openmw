@@ -483,5 +483,6 @@ op 0x2000320: SetMovementPosition
 op 0x2000321: SetMovementPosition, explicit
 op 0x2000322: SetMovementRotation
 op 0x2000323: SetMovementRotation, explicit
+op 0x2000324: Quit
 
-opcodes 0x2000324-0x3ffffff unused
+opcodes 0x2000325-0x3ffffff unused
