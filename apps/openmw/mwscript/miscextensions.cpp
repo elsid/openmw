@@ -41,6 +41,7 @@
 #include "../mwmechanics/creaturestats.hpp"
 #include "../mwmechanics/spellcasting.hpp"
 #include "../mwmechanics/actorutil.hpp"
+#include "../mwmechanics/movement.hpp"
 
 #include "interpretercontext.hpp"
 #include "ref.hpp"
@@ -1580,6 +1581,56 @@ namespace MWScript
                 }
         };
 
+        template <class R>
+        class OpSetMovementPosition : public Interpreter::Opcode0
+        {
+            public:
+
+                virtual void execute (Interpreter::Runtime& runtime)
+                {
+                    const MWWorld::Ptr ptr = R()(runtime);
+
+                    const auto axis = runtime.getStringLiteral(runtime[0].mInteger);
+                    runtime.pop();
+                    const auto shift = runtime[0].mFloat;
+                    runtime.pop();
+
+                    if (axis == "x")
+                        ptr.getClass().getMovementSettings(ptr).mPosition[0] = shift;
+                    else if (axis == "y")
+                        ptr.getClass().getMovementSettings(ptr).mPosition[1] = shift;
+                    else if (axis == "z")
+                        ptr.getClass().getMovementSettings(ptr).mPosition[2] = shift;
+                    else
+                        throw std::runtime_error("invalid axis: " + axis);
+                }
+        };
+
+        template <class R>
+        class OpSetMovementRotation : public Interpreter::Opcode0
+        {
+            public:
+
+                virtual void execute (Interpreter::Runtime& runtime)
+                {
+                    const MWWorld::Ptr ptr = R()(runtime);
+
+                    const auto axis = runtime.getStringLiteral(runtime[0].mInteger);
+                    runtime.pop();
+                    const auto angle = osg::DegreesToRadians(runtime[0].mFloat);
+                    runtime.pop();
+
+                    if (axis == "x")
+                        ptr.getClass().getMovementSettings(ptr).mRotation[0] = angle;
+                    else if (axis == "y")
+                        ptr.getClass().getMovementSettings(ptr).mRotation[1] = angle;
+                    else if (axis == "z")
+                        ptr.getClass().getMovementSettings(ptr).mRotation[2] = angle;
+                    else
+                        throw std::runtime_error("invalid axis: " + axis);
+                }
+        };
+
         void installOpcodes (Interpreter::Interpreter& interpreter)
         {
             interpreter.installSegment5 (Compiler::Misc::opcodeMenuMode, new OpMenuMode);
@@ -1699,6 +1750,10 @@ namespace MWScript
             interpreter.installSegment5 (Compiler::Misc::opcodeRepairedOnMe, new OpRepairedOnMe<ImplicitRef>);
             interpreter.installSegment5 (Compiler::Misc::opcodeRepairedOnMeExplicit, new OpRepairedOnMe<ExplicitRef>);
             interpreter.installSegment5 (Compiler::Misc::opcodeToggleRecastMesh, new OpToggleRecastMesh);
+            interpreter.installSegment5 (Compiler::Misc::opcodeSetMovementPosition, new OpSetMovementPosition<ImplicitRef>);
+            interpreter.installSegment5 (Compiler::Misc::opcodeSetMovementPositionExplicit, new OpSetMovementPosition<ExplicitRef>);
+            interpreter.installSegment5 (Compiler::Misc::opcodeSetMovementRotation, new OpSetMovementRotation<ImplicitRef>);
+            interpreter.installSegment5 (Compiler::Misc::opcodeSetMovementRotationExplicit, new OpSetMovementRotation<ExplicitRef>);
         }
     }
 }
