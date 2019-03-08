@@ -28,7 +28,7 @@ max tiles number
 ----------------
 
 :Type:		integer
-:Range:		>= 0
+:Range:		0 <= ``max tiles number`` < 268435456
 :Default:	512
 
 Number of tiles at nav mesh.
@@ -36,11 +36,6 @@ Nav mesh covers circle area around player.
 This option allows to set an explicit limit for nav mesh size, how many tiles should fit into circle.
 If actor is inside this area it able to find path over nav mesh.
 Increasing this value may decrease performance.
-
-.. note::
-    Don't expect infinite nav mesh size increasing.
-    This condition is always true: ``max tiles number * max polygons per tile <= 4194304``.
-    It's a limitation of `Recastnavigation <https://github.com/recastnavigation/recastnavigation>`_ library.
 
 Advanced settings
 *****************
@@ -326,18 +321,13 @@ max polygons per tile
 ---------------------
 
 :Type:		integer
-:Range:		2^n, 0 < n < 22
+:Range:		0 <= ``max polygons per tile`` < 1048576
 :Default:	4096
 
-Maximum number of polygons per nav mesh tile. Maximum number of nav mesh tiles depends on
-this value. 22 bits is a limit to store both tile identifier and polygon identifier (tiles = 2^(22 - log2(polygons))).
-See `recastnavigation <https://github.com/recastnavigation/recastnavigation>`_ for more details.
+Maximum number of polygons per nav mesh tile.
 
 .. Warning::
     Lower value may lead to ignored world geometry on nav mesh.
-    Greater value will reduce number of nav mesh tiles.
-    This condition is always true: ``max tiles number * max polygons per tile <= 4194304``.
-    It's a limitation of `Recastnavigation <https://github.com/recastnavigation/recastnavigation>`_ library.
 
 max verts per poly
 ------------------
