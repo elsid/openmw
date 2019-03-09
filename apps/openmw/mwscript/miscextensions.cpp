@@ -1643,6 +1643,25 @@ namespace MWScript
                 }
         };
 
+        template <class R>
+        class OpSetCollisionMode : public Interpreter::Opcode0
+        {
+            public:
+
+                virtual void execute (Interpreter::Runtime& runtime)
+                {
+                    const MWWorld::Ptr ptr = R()(runtime);
+
+                    const auto internal = static_cast<bool>(runtime[0].mInteger);
+                    runtime.pop();
+
+                    const auto external = static_cast<bool>(runtime[0].mInteger);
+                    runtime.pop();
+
+                    MWBase::Environment::get().getWorld()->setActorCollisionMode(ptr, internal, external);
+                }
+        };
+
         void installOpcodes (Interpreter::Interpreter& interpreter)
         {
             interpreter.installSegment5 (Compiler::Misc::opcodeMenuMode, new OpMenuMode);
@@ -1767,6 +1786,7 @@ namespace MWScript
             interpreter.installSegment5 (Compiler::Misc::opcodeSetMovementRotation, new OpSetMovementRotation<ImplicitRef>);
             interpreter.installSegment5 (Compiler::Misc::opcodeSetMovementRotationExplicit, new OpSetMovementRotation<ExplicitRef>);
             interpreter.installSegment5 (Compiler::Misc::opcodeQuit, new OpQuit);
+            interpreter.installSegment5 (Compiler::Misc::opcodeSetCollisionModeExplicit, new OpSetCollisionMode<ExplicitRef>);
         }
     }
 }
