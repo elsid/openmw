@@ -323,6 +323,8 @@ namespace Compiler
         const int opcodeSetMovementRotation = 0x2000322;
         const int opcodeSetMovementRotationExplicit = 0x2000323;
         const int opcodeQuit = 0x2000324;
+        const int opcodeSetCollisionMode = 0x2000325;
+        const int opcodeSetCollisionModeExplicit = 0x2000326;
     }
 
     namespace Sky
