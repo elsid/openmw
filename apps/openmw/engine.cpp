@@ -775,6 +775,8 @@ void OMW::Engine::go()
     // Save user settings
     settings.saveUser(settingspath);
 
+    ::Profiler::instance().save();
+
     Log(Debug::Info) << "Quitting peacefully.";
 }
 
