@@ -18,7 +18,8 @@ BulletShape::BulletShape()
 }
 
 BulletShape::BulletShape(const BulletShape &copy, const osg::CopyOp &copyop)
-    : mCollisionShape(duplicateCollisionShape(copy.mCollisionShape))
+    : osg::Object(copy, copyop)
+    , mCollisionShape(duplicateCollisionShape(copy.mCollisionShape))
     , mAvoidCollisionShape(duplicateCollisionShape(copy.mAvoidCollisionShape))
     , mCollisionBoxHalfExtents(copy.mCollisionBoxHalfExtents)
     , mCollisionBoxTranslate(copy.mCollisionBoxTranslate)
@@ -49,6 +50,9 @@ void BulletShape::deleteShape(btCollisionShape* shape)
 
 btCollisionShape* BulletShape::duplicateCollisionShape(const btCollisionShape *shape) const
 {
+    if (!shape)
+        return nullptr;
+
     if(shape->isCompound())
     {
         const btCompoundShape *comp = static_cast<const btCompoundShape*>(shape);
@@ -103,19 +107,9 @@ osg::ref_ptr<BulletShapeInstance> BulletShape::makeInstance() const
 }
 
 BulletShapeInstance::BulletShapeInstance(osg::ref_ptr<const BulletShape> source)
-    : BulletShape()
+    : BulletShape(*source, osg::CopyOp::SHALLOW_COPY)
     , mSource(source)
 {
-    mCollisionBoxHalfExtents = source->mCollisionBoxHalfExtents;
-    mCollisionBoxTranslate = source->mCollisionBoxTranslate;
-
-    mAnimatedShapes = source->mAnimatedShapes;
-
-    if (source->mCollisionShape)
-        mCollisionShape = duplicateCollisionShape(source->mCollisionShape);
-
-    if (source->mAvoidCollisionShape)
-        mAvoidCollisionShape = duplicateCollisionShape(source->mAvoidCollisionShape);
 }
 
 }
