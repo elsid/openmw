@@ -127,6 +127,7 @@ namespace NifBullet
 osg::ref_ptr<Resource::BulletShape> BulletNifLoader::load(const Nif::File& nif)
 {
     mShape = new Resource::BulletShape;
+    mShape->setName(nif.getFilename());
 
     mCompoundShape.reset();
     mStaticMesh.reset();
