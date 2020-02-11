@@ -37,7 +37,6 @@
 #include "localscripts.hpp"
 #include "esmstore.hpp"
 #include "class.hpp"
-#include "cellvisitors.hpp"
 #include "cellstore.hpp"
 #include "cellpreloader.hpp"
 
@@ -328,21 +327,23 @@ namespace MWWorld
             Log(Debug::Info) << "Unloading cell " << (*iter)->getCell()->getDescription();
 
         const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
-        ListAndResetObjectsVisitor visitor;
-
-        (*iter)->forEach(visitor);
         const auto world = MWBase::Environment::get().getWorld();
-        for (const auto& ptr : visitor.mObjects)
-        {
-            if (const auto object = mPhysics->getObject(ptr))
-                navigator->removeObject(DetourNavigator::ObjectId(object));
-            else if (mPhysics->getActor(ptr))
+
+        (*iter)->forEach([&] (auto ptr) {
+            if (ptr.getRefData().getBaseNode())
             {
-                navigator->removeAgent(world->getPathfindingHalfExtents(ptr));
-                mRendering.removeActorPath(ptr);
+                ptr.getRefData().setBaseNode(nullptr);
+                if (const auto object = mPhysics->getObject(ptr))
+                    navigator->removeObject(DetourNavigator::ObjectId(object));
+                else if (mPhysics->getActor(ptr))
+                {
+                    navigator->removeAgent(world->getPathfindingHalfExtents(ptr));
+                    mRendering.removeActorPath(ptr);
+                }
+                mPhysics->remove(ptr);
             }
-            mPhysics->remove(ptr);
-        }
+            return true;
+        });
 
         const auto cellX = (*iter)->getCell()->getGridX();
         const auto cellY = (*iter)->getCell()->getGridY();
