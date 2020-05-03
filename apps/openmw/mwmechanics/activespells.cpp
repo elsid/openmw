@@ -209,10 +209,12 @@ namespace MWMechanics
 
     void ActiveSpells::visitEffectSources(EffectSourceVisitor &visitor) const
     {
+        // https://gitlab.com/OpenMW/openmw/-/issues/3789 iterate over std::multimap mSpells
         for (TContainer::const_iterator it = begin(); it != end(); ++it)
         {
             float timeScale = MWBase::Environment::get().getWorld()->getTimeScaleFactor();
 
+            // https://gitlab.com/OpenMW/openmw/-/issues/3789 iterate over content of mSpells iterator
             for (std::vector<ActiveEffect>::const_iterator effectIt = it->second.mEffects.begin();
                  effectIt != it->second.mEffects.end(); ++effectIt)
             {
@@ -224,6 +226,7 @@ namespace MWMechanics
 
                 if (magnitude)
                     visitor.visit(MWMechanics::EffectKey(effectIt->mEffectId, effectIt->mArg), name, it->first, it->second.mCasterActorId, magnitude, remainingTime, effectIt->mDuration);
+                    // https://gitlab.com/OpenMW/openmw/-/issues/3789 effectIt may be invalidated
             }
         }
     }
@@ -253,6 +256,7 @@ namespace MWMechanics
         mSpellsChanged = true;
     }
 
+    // https://gitlab.com/OpenMW/openmw/-/issues/3789 called by effectTick
     void ActiveSpells::purgeEffect(short effectId)
     {
         for (TContainer::iterator it = mSpells.begin(); it != mSpells.end(); ++it)
@@ -261,6 +265,7 @@ namespace MWMechanics
                  effectIt != it->second.mEffects.end();)
             {
                 if (effectIt->mEffectId == effectId)
+                    // https://gitlab.com/OpenMW/openmw/-/issues/3789 invalidates iterator used by ActiveSpells::visitEffectSources
                     effectIt = it->second.mEffects.erase(effectIt);
                 else
                     ++effectIt;

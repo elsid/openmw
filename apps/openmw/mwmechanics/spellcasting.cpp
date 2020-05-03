@@ -1158,6 +1158,7 @@ namespace MWMechanics
         creatureStats.setDynamic(index, stat);
     }
 
+    // https://gitlab.com/OpenMW/openmw/-/issues/3789 called by ExpiryVisitor::visit
     bool effectTick(CreatureStats& creatureStats, const MWWorld::Ptr& actor, const EffectKey &effectKey, float magnitude)
     {
         if (magnitude == 0.f)
@@ -1286,9 +1287,11 @@ namespace MWMechanics
         }
 
         case ESM::MagicEffect::CurePoison:
+            // https://gitlab.com/OpenMW/openmw/-/issues/3789 non const ActiveSpells::purgeEffect is called while in const ActiveSpells::visitEffectSources
             actor.getClass().getCreatureStats(actor).getActiveSpells().purgeEffect(ESM::MagicEffect::Poison);
             break;
         case ESM::MagicEffect::CureParalyzation:
+            // https://gitlab.com/OpenMW/openmw/-/issues/3789 non const ActiveSpells::purgeEffect is called while in const ActiveSpells::visitEffectSources
             actor.getClass().getCreatureStats(actor).getActiveSpells().purgeEffect(ESM::MagicEffect::Paralyze);
             break;
         case ESM::MagicEffect::CureCommonDisease:

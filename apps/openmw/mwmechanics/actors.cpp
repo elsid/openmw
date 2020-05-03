@@ -848,6 +848,7 @@ namespace MWMechanics
             {
             }
 
+            // https://gitlab.com/OpenMW/openmw/-/issues/3789 called by ActiveSpells::visitEffectSources const
             virtual void visit (MWMechanics::EffectKey key,
                                 const std::string& /*sourceName*/, const std::string& /*sourceId*/, int /*casterActorId*/,
                                 float magnitude, float remainingTime = -1, float /*totalTime*/ = -1)
@@ -875,6 +876,7 @@ namespace MWMechanics
             // One case where this will happen is when the player uses the rest/wait command
             // while there is a tickable effect active that should expire before the end of the rest/wait.
             ExpiryVisitor visitor(ptr, duration);
+            // https://gitlab.com/OpenMW/openmw/-/issues/3789 visitor is applied
             creatureStats.getActiveSpells().visitEffectSources(visitor);
 
             for (MagicEffects::Collection::const_iterator it = effects.begin(); it != effects.end(); ++it)
