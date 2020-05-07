@@ -53,16 +53,16 @@ namespace MWWorld
         : mId(id), mIsDeleted(isDeleted)
     {}
 
-    template<typename T> 
+    template<typename T>
     IndexedStore<T>::IndexedStore()
     {
     }
-    template<typename T>        
+    template<typename T>
     typename IndexedStore<T>::iterator IndexedStore<T>::begin() const
     {
         return mStatic.begin();
     }
-    template<typename T>    
+    template<typename T>
     typename IndexedStore<T>::iterator IndexedStore<T>::end() const
     {
         return mStatic.end();
@@ -213,7 +213,7 @@ namespace MWWorld
     template<typename T>
     typename Store<T>::iterator Store<T>::begin() const
     {
-        return mShared.begin(); 
+        return mShared.begin();
     }
     template<typename T>
     typename Store<T>::iterator Store<T>::end() const
@@ -430,7 +430,7 @@ namespace MWWorld
         if (mStatic.size() < num)
             mStatic.resize(num);
     }
-    
+
     // Land
     //=========================================================================
     Store<ESM::Land>::~Store()
@@ -658,7 +658,7 @@ namespace MWWorld
         ESM::Cell cell;
         bool isDeleted = false;
 
-        // Load the (x,y) coordinates of the cell, if it is an exterior cell, 
+        // Load the (x,y) coordinates of the cell, if it is an exterior cell,
         // so we can find the cell we need to merge with
         cell.loadNameAndData(esm, isDeleted);
         std::string idLower = Misc::StringUtils::lowerCase(cell.mName);
@@ -886,7 +886,7 @@ namespace MWWorld
         return true;
     }
 
-    
+
     // Pathgrid
     //=========================================================================
 
@@ -988,7 +988,7 @@ namespace MWWorld
 
     // Skill
     //=========================================================================
-    
+
     Store<ESM::Skill>::Store()
     {
     }
@@ -1029,7 +1029,7 @@ namespace MWWorld
     }
     void Store<ESM::Attribute>::setUp()
     {
-        for (int i = 0; i < ESM::Attribute::Length; ++i) 
+        for (int i = 0; i < ESM::Attribute::Length; ++i)
         {
             ESM::Attribute newAttribute;
             newAttribute.mId = ESM::Attribute::sAttributeIds[i];
@@ -1051,7 +1051,7 @@ namespace MWWorld
         return mStatic.end();
     }
 
-    
+
     // Dialogue
     //=========================================================================
 
@@ -1112,47 +1112,3 @@ namespace MWWorld
     }
 
 }
-
-template class MWWorld::Store<ESM::Activator>;
-template class MWWorld::Store<ESM::Apparatus>;
-template class MWWorld::Store<ESM::Armor>;
-//template class MWWorld::Store<ESM::Attribute>;
-template class MWWorld::Store<ESM::BirthSign>;
-template class MWWorld::Store<ESM::BodyPart>;
-template class MWWorld::Store<ESM::Book>;
-//template class MWWorld::Store<ESM::Cell>;
-template class MWWorld::Store<ESM::Class>;
-template class MWWorld::Store<ESM::Clothing>;
-template class MWWorld::Store<ESM::Container>;
-template class MWWorld::Store<ESM::Creature>;
-template class MWWorld::Store<ESM::CreatureLevList>;
-template class MWWorld::Store<ESM::Dialogue>;
-template class MWWorld::Store<ESM::Door>;
-template class MWWorld::Store<ESM::Enchantment>;
-template class MWWorld::Store<ESM::Faction>;
-template class MWWorld::Store<ESM::GameSetting>;
-template class MWWorld::Store<ESM::Global>;
-template class MWWorld::Store<ESM::Ingredient>;
-template class MWWorld::Store<ESM::ItemLevList>;
-//template class MWWorld::Store<ESM::Land>;
-//template class MWWorld::Store<ESM::LandTexture>;
-template class MWWorld::Store<ESM::Light>;
-template class MWWorld::Store<ESM::Lockpick>;
-//template class MWWorld::Store<ESM::MagicEffect>;
-template class MWWorld::Store<ESM::Miscellaneous>;
-template class MWWorld::Store<ESM::NPC>;
-//template class MWWorld::Store<ESM::Pathgrid>;
-template class MWWorld::Store<ESM::Potion>;
-template class MWWorld::Store<ESM::Probe>;
-template class MWWorld::Store<ESM::Race>;
-template class MWWorld::Store<ESM::Region>;
-template class MWWorld::Store<ESM::Repair>;
-template class MWWorld::Store<ESM::Script>;
-//template class MWWorld::Store<ESM::Skill>;
-template class MWWorld::Store<ESM::Sound>;
-template class MWWorld::Store<ESM::SoundGenerator>;
-template class MWWorld::Store<ESM::Spell>;
-template class MWWorld::Store<ESM::StartScript>;
-template class MWWorld::Store<ESM::Static>;
-template class MWWorld::Store<ESM::Weapon>;
-

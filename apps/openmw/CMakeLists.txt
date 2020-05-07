@@ -67,6 +67,48 @@ add_openmw_dir (mwworld
     store esmstore recordcmp fallback actionrepair actionsoulgem livecellref actiondoor
     contentloader esmloader actiontrap cellreflist cellref physicssystem weather projectilemanager
     cellpreloader
+    storespecializations/storeactivator
+    storespecializations/storeapparatus
+    storespecializations/storearmor
+    storespecializations/storeattribute
+    storespecializations/storebirthsign
+    storespecializations/storebodypart
+    storespecializations/storebook
+    storespecializations/storecell
+    storespecializations/storeclass
+    storespecializations/storeclothing
+    storespecializations/storecontainer
+    storespecializations/storecreature
+    storespecializations/storecreaturelevlist
+    storespecializations/storedialogue
+    storespecializations/storedoor
+    storespecializations/storeenchantment
+    storespecializations/storefaction
+    storespecializations/storegamesetting
+    storespecializations/storeglobal
+    storespecializations/storeingredient
+    storespecializations/storeitemlevlist
+    storespecializations/storeland
+    storespecializations/storelandtexture
+    storespecializations/storelight
+    storespecializations/storelockpick
+    storespecializations/storemagiceffect
+    storespecializations/storemiscellaneous
+    storespecializations/storenpc
+    storespecializations/storepathgrid
+    storespecializations/storepotion
+    storespecializations/storeprobe
+    storespecializations/storerace
+    storespecializations/storeregion
+    storespecializations/storerepair
+    storespecializations/storescript
+    storespecializations/storeskill
+    storespecializations/storesound
+    storespecializations/storesoundgenerator
+    storespecializations/storespell
+    storespecializations/storestartscript
+    storespecializations/storestatic
+    storespecializations/storeweapon
     )
 
 add_openmw_dir (mwphysics
