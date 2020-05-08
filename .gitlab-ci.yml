@@ -44,23 +44,30 @@ MacOS:
 Windows:
   tags:
     - windows
+  before_script:
+    - Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+    - choco install git --force --params "/GitAndUnixToolsOnPath" -y
+    - choco install 7zip -y
+    - choco install cmake.install --installargs 'ADD_CMAKE_TO_PATH=System' -y
+    - choco install windbg -y
+    - refreshenv
   stage: build
-  allow_failure: true
+  variables:
+    STEP: openmw
   script:
-    - Set-Variable -Name "time" -Value (date -Format "%H:%m")
-    - echo ${time}
-    - echo "started by ${GITLAB_USER_NAME}"
-#   TODO: to anyone wanting to do further work here, we need to figure out how to get the below working
-#   TODO: on gitlab's new shared windows runners. They currently don't have bash or anything else installed
-#   TODO: it is currently just a bare windows 10 with powershell.
-#    - env  # turn on for debugging
-#    - sh %CI_PROJECT_DIR%/CI/before_script.msvc.sh -c Release -p x64 -v 2017 -V
-#    - SET msBuildLocation="C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\msbuild.exe"
-#    - call %msBuildLocation% MSVC2017_64\OpenMW.sln /t:Build /p:Configuration=Release /m:%NUMBER_OF_PROCESSORS%
-#    - 7z a OpenMW_MSVC2017_64_%CI_BUILD_REF_NAME%_%CI_BUILD_ID%.zip %CI_PROJECT_DIR%\MSVC2017_64\Release\
+    - dir "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build"
+    - $env:Path += ";C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build"
+    - $env:Path += ";C:\Program Files (x86)\Windows Kits\10\Debuggers\x64"
+    - $env:Path += ";$(Join-Path -Path (Get-Location) -ChildPath "CI")"
+    - $install_dir = Join-Path -Path (Get-Location) -ChildPath "install"
+    - sh -ex CI/before_script.msvc.sh -c Release -p x64 -v 2019 -V -k -b ninja -i $install_dir
+    - MSVC2019_64_ninja_Release\cmake_build.bat
+    - MSVC2019_64_ninja_Release\cmake_build_install.bat
+    - 7z a -tzip OpenMW_MSVC2019_64_${CI_BUILD_REF_NAME}_${CI_BUILD_ID}.zip $install_dir
   cache:
     paths:
     - deps
   artifacts:
+    when: always
     paths:
     - "*.zip"
