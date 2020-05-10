@@ -31,12 +31,12 @@ SKIP_EXTRACT=""
 KEEP=""
 UNITY_BUILD=""
 VS_VERSION=""
-NMAKE=""
 PLATFORM=""
 CONFIGURATION=""
 TEST_FRAMEWORK=""
 GOOGLE_INSTALL_ROOT=""
 INSTALL_PREFIX="."
+BUILD_SYSTEM=msbuild
 
 while [ $# -gt 0 ]; do
 	ARGSTR=$1
@@ -71,7 +71,7 @@ while [ $# -gt 0 ]; do
 				shift ;;
 
 			n )
-				NMAKE=true ;;
+				BUILD_SYSTEM=nmake ;;
 
 			p )
 				PLATFORM=$1
@@ -88,9 +88,13 @@ while [ $# -gt 0 ]; do
 				INSTALL_PREFIX=$(echo "$1" | sed 's;\\;/;g' | sed -E 's;/+;/;g')
 				shift ;;
 
+			b )
+				BUILD_SYSTEM=$1
+				shift ;;
+
 			h )
 				cat <<EOF
-Usage: $0 [-cdehkpuvVi]
+Usage: $0 [-cdehkpuvVib]
 Options:
 	-c <Release/Debug>
 		Set the configuration, can also be set with environment variable CONFIGURATION.
@@ -116,6 +120,8 @@ Options:
 		Run verbosely
 	-i
 		CMake install prefix
+	-b <msbuild/nmake/ninja>
+		Build system
 EOF
 				exit 0
 				;;
@@ -127,10 +133,6 @@ EOF
 		esac
 	done
 done
-
-if [ -n "$NMAKE" ]; then
-	command -v nmake -? >/dev/null 2>&1 || { echo "Error: nmake (NMake) is not on the path. Make sure you have the necessary environment variables set for command-line C++ development (for example, by starting from a Developer Command Prompt)."; exit 1; }
-fi
 
 if [ -z $VERBOSE ]; then
 	STRIP="> /dev/null 2>&1"
@@ -343,25 +345,36 @@ case $CONFIGURATION in
 		;;
 esac
 
-if [ $BITS -eq 64 ] && [ $MSVC_REAL_VER -lt 16 ]; then
-	GENERATOR="${GENERATOR} Win64"
+BUILD_PLATFORM=""
+
+if [ "${BUILD_SYSTEM}" == msbuild ]; then
+	if [ $BITS -eq 64 ] && [ $MSVC_REAL_VER -lt 16 ]; then
+		GENERATOR="${GENERATOR} Win64"
+	fi
+	if [ $MSVC_REAL_VER -ge 16 ]; then
+		if [ $BITS -eq 64 ]; then
+			BUILD_PLATFORM=x64
+		else
+			BUILD_PLATFORM=Win32
+		fi
+	fi
 fi
 
-if [ -n "$NMAKE" ]; then
+if [ "${BUILD_SYSTEM}" == nmake ]; then
 	GENERATOR="NMake Makefiles"
 fi
 
-if [ $MSVC_REAL_VER -ge 16 ]; then
-	if [ $BITS -eq 64 ]; then
-		add_cmake_opts "-G\"$GENERATOR\" -A x64"
-	else
-		add_cmake_opts "-G\"$GENERATOR\" -A Win32"
-	fi
-else
-	add_cmake_opts "-G\"$GENERATOR\""
+if [ "${BUILD_SYSTEM}" == ninja ]; then
+	GENERATOR="Ninja"
 fi
 
-if [ -n "$NMAKE" ]; then
+add_cmake_opts "-G \"${GENERATOR}\""
+
+if [ -n "${BUILD_PLATFORM}" ]; then
+	add_cmake_opts "-A ${BUILD_PLATFORM}"
+fi
+
+if [ "${BUILD_SYSTEM}" == nmake ] || [ "${BUILD_SYSTEM}" == ninja ]; then
 	add_cmake_opts "-DCMAKE_BUILD_TYPE=${BUILD_CONFIG}"
 fi
 
@@ -455,8 +468,10 @@ cd .. #/..
 # Set up dependencies
 BUILD_DIR="MSVC${MSVC_DISPLAY_YEAR}_${BITS}"
 
-if [ -n "$NMAKE" ]; then
+if [ "${BUILD_SYSTEM}" == nmake ]; then
 	BUILD_DIR="${BUILD_DIR}_NMake_${BUILD_CONFIG}"
+elif [ "${BUILD_SYSTEM}" != msbuild ]; then
+	BUILD_DIR="${BUILD_DIR}_${BUILD_SYSTEM}_${BUILD_CONFIG}"
 fi
 
 if [ -z $KEEP ]; then
@@ -806,7 +821,7 @@ fi
 #if [ -z $CI ]; then
 	echo "- Copying Runtime DLLs..."
 	DLL_PREFIX=""
-	if [ -z $NMAKE ]; then
+	if [ "${BUILD_SYSTEM}" == msbuild ]; then
 		mkdir -p $BUILD_CONFIG
 		DLL_PREFIX="$BUILD_CONFIG/"
 	fi
