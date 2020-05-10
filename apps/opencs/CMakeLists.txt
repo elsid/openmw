@@ -251,10 +251,17 @@ else()
 endif()
 
 if (WIN32)
+    get_generator_is_multi_config(multi_config)
+
     target_link_libraries(openmw-cs ${Boost_LOCALE_LIBRARY})
     INSTALL(TARGETS openmw-cs RUNTIME DESTINATION ".")
-    INSTALL(FILES "${OpenMW_BINARY_DIR}/Debug/openmw-cs.cfg" DESTINATION "." CONFIGURATIONS Debug)
-    INSTALL(FILES "${OpenMW_BINARY_DIR}/Release/openmw-cs.cfg" DESTINATION "." CONFIGURATIONS Release;RelWithDebInfo;MinSizeRel)
+
+    if(multi_config)
+        install(FILES "${OpenMW_BINARY_DIR}/Debug/openmw-cs.cfg" DESTINATION "." CONFIGURATIONS Debug)
+        install(FILES "${OpenMW_BINARY_DIR}/Release/openmw-cs.cfg" DESTINATION "." CONFIGURATIONS Release;RelWithDebInfo;MinSizeRel)
+    else()
+        install(FILES "${OpenMW_BINARY_DIR}/openmw-cs.cfg" DESTINATION ".")
+    endif()
 endif()
 
 if (MSVC)
