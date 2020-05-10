@@ -365,7 +365,7 @@ if [ "${BUILD_SYSTEM}" == nmake ]; then
 fi
 
 if [ "${BUILD_SYSTEM}" == ninja ]; then
-	GENERATOR="Ninja"
+	GENERATOR="Ninja Multi-Config"
 fi
 
 add_cmake_opts "-G \"${GENERATOR}\""
@@ -374,7 +374,7 @@ if [ -n "${BUILD_PLATFORM}" ]; then
 	add_cmake_opts "-A ${BUILD_PLATFORM}"
 fi
 
-if [ "${BUILD_SYSTEM}" == nmake ] || [ "${BUILD_SYSTEM}" == ninja ]; then
+if [ "${BUILD_SYSTEM}" == nmake ]; then
 	add_cmake_opts "-DCMAKE_BUILD_TYPE=${BUILD_CONFIG}"
 fi
 
@@ -783,7 +783,6 @@ echo
 echo "Setting up OpenMW build..."
 add_cmake_opts -DOPENMW_MP_BUILD=on
 add_cmake_opts -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
-add_cmake_opts -DCMAKE_CXX_COMPILER_LAUNCHER="cdb.bat"
 if [ ! -z $CI ]; then
 	case $STEP in
 		components )
@@ -858,20 +857,7 @@ else
 	echo "- cmake .. $CMAKE_OPTS"
 fi
 
-if [ ${BUILD_SYSTEM} == msbuild ]; then
-	run_cmd cmake .. $CMAKE_OPTS
-else
-	echo "cd ${BUILD_DIR}" > cmake.bat
-	echo "@call vcvars${BITS}.bat" >> cmake.bat
-	echo "cmake.exe .. $CMAKE_OPTS" >> cmake.bat
-	echo "cd ${BUILD_DIR}" > cmake_build.bat
-	echo "@call vcvars${BITS}.bat" >> cmake_build.bat
-	echo "cmake.exe --build . --parallel" >> cmake_build.bat
-	echo "cd ${BUILD_DIR}" > cmake_build_install.bat
-	echo "@call vcvars${BITS}.bat" >> cmake_build_install.bat
-	echo "cmake.exe --build . --parallel --target install" >> cmake_build_install.bat
-	./cmake.bat
-fi
+run_cmd cmake .. $CMAKE_OPTS
 RET=$?
 if [ -z $VERBOSE ]; then
 	if [ $RET -eq 0 ]; then
