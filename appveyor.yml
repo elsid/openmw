@@ -47,16 +47,18 @@ clone_folder: C:\projects\openmw
 
 install:
     - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%
+    - cmd: if %PLATFORM%==Win32 call "C:\Program Files (x86)\Microsoft Visual Studio\%MSVC%\Community\VC\Auxiliary\Build\vcvars32.bat"
+    - cmd: if %PLATFORM%==x64 call "C:\Program Files (x86)\Microsoft Visual Studio\%MSVC%\Community\VC\Auxiliary\Build\vcvars64.bat"
 
 before_build:
     - cmd: git submodule update --init --recursive
-    - cmd: sh %APPVEYOR_BUILD_FOLDER%\CI\before_script.msvc.sh -c %configuration% -p %PLATFORM% -v %msvc% -V -i %APPVEYOR_BUILD_FOLDER%\install
+    - cmd: sh %APPVEYOR_BUILD_FOLDER%\CI\before_script.msvc.sh -c %configuration% -p %PLATFORM% -v %msvc% -V -i %APPVEYOR_BUILD_FOLDER%\install -b ninja
 
 build_script:
     - cmd: if %PLATFORM%==Win32 set build=MSVC%msvc%_32
     - cmd: if %PLATFORM%==x64 set build=MSVC%msvc%_64
-    - cmd: msbuild %build%\OpenMW.sln /t:Build /p:Configuration=%configuration% /m:2 /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
-    - cmd: cmake --build %build% --target install
+    - cmd: cmake --build %build%_ninja_Release --parallel
+    - cmd: cmake --install %build%_ninja_Release --parallel
 
 after_build:
     - cmd: if %PLATFORM%==x64 7z a OpenMW_MSVC%msvc%_%platform%_%appveyor_pull_request_number%_%appveyor_pull_request_head_commit%.zip %APPVEYOR_BUILD_FOLDER%\install -xr"!*.pdb"
