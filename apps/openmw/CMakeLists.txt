@@ -15,6 +15,10 @@ set(GAME_HEADER
     engine.hpp
 )
 
+if (MULTITHREADED_PHYSICS)
+    add_definitions(-DMULTITHREADED_PHYSICS)
+endif()
+
 source_group(game FILES ${GAME} ${GAME_HEADER})
 
 add_openmw_dir (mwrender
@@ -73,7 +77,7 @@ add_openmw_dir (mwworld
 add_openmw_dir (mwphysics
     physicssystem trace collisiontype actor convert object heightfield closestnotmerayresultcallback
     contacttestresultcallback deepestnotmecontacttestresultcallback stepper movementsolver
-    closestnotmeconvexresultcallback
+    closestnotmeconvexresultcallback mtphysics
     )
 
 add_openmw_dir (mwclass
