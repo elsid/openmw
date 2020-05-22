@@ -50,6 +50,7 @@
 #include "contacttestresultcallback.hpp"
 #include "constants.hpp"
 #include "movementsolver.hpp"
+#include "mtphysics.hpp"
 
 namespace MWPhysics
 {
@@ -86,6 +87,10 @@ namespace MWPhysics
                 Log(Debug::Warning) << "Warning: using custom physics framerate (" << physFramerate << " FPS).";
             }
         }
+
+        mTaskScheduler = std::make_unique<PhysicsTaskScheduler>();
+        btSetTaskScheduler(mTaskScheduler.get());
+        btParallelFor(0, 0, 0, CheckBulletMultithreadingSupport());
     }
 
     PhysicsSystem::~PhysicsSystem()
@@ -159,7 +164,7 @@ namespace MWPhysics
             return false;
 
         CollisionMap::const_iterator found = mStandingCollisions.find(actor);
-        if (found == mStandingCollisions.end())
+        if (found == mStandingCollisions.end() || found->second == nullptr)
             return true; // assume standing on terrain (which is a non-object, so not collision tracked)
 
         ObjectMap::const_iterator foundObj = mObjects.find(found->second);
@@ -676,94 +681,151 @@ namespace MWPhysics
         mStandingCollisions.clear();
     }
 
-    const PtrVelocityList& PhysicsSystem::applyQueuedMovement(float dt)
+    PtrPositionList& PhysicsSystem::applyQueuedMovement(float dt)
     {
         mMovementResults.clear();
-
+        mActorsFrameData.clear();
         mTimeAccum += dt;
 
         const int maxAllowedSteps = 20;
-        int numSteps = mTimeAccum / (mPhysicsDt);
+        int numSteps = mTimeAccum / mPhysicsDt;
         numSteps = std::min(numSteps, maxAllowedSteps);
 
         mTimeAccum -= numSteps * mPhysicsDt;
 
+        prepareFrameData(numSteps);
+
+        const auto batchsize = std::max<int>(1, mActorsFrameData.size() / mTaskScheduler->getNumThreads());
+        for (int i=0; i<numSteps; ++i)
+        {
+            // compute next position for all actors
+            btParallelFor(0, mActorsFrameData.size(), batchsize, ApplyQueuedMovementMT(this));
+
+            // update collision world with actors new positions
+            for (auto& actorData : mActorsFrameData)
+            {
+                if (actorData.position == actorData.actor->getPosition())
+                    actorData.actor->setPosition(actorData.position, false); // update previous position to make sure interpolation is correct
+                else
+                {
+                    actorData.state |= ActorFrameState::positionChanged;
+                    actorData.actor->setPosition(actorData.position);
+                }
+            }
+        }
+
+        for (const auto& actorData : mActorsFrameData)
+        {
+            updateAabbs(actorData);
+            handleFall(actorData, numSteps);
+            interpolateMovements(actorData);
+        }
+        return mMovementResults;
+    }
+
+    void PhysicsSystem::applyQueuedMovementRange(int iBegin, int iEnd)
+    {
+        for (int i = iBegin; i < iEnd; ++i)
+            MovementSolver::move(mActorsFrameData[i], mPhysicsDt, mCollisionWorld, mStandingCollisions);
+    }
+
+    void PhysicsSystem::prepareFrameData(int numSteps)
+    {
         if (numSteps)
         {
             // Collision events should be available on every frame
             mStandingCollisions.clear();
+
+            // Pre fill the collision map to avoid allocation during physic update
+            for (auto const& m : mMovementQueue)
+                mStandingCollisions[m.first] = nullptr;
         }
 
-        const MWWorld::Ptr player = MWMechanics::getPlayer();
         const MWBase::World *world = MWBase::Environment::get().getWorld();
-        PtrVelocityList::iterator iter = mMovementQueue.begin();
-        for(;iter != mMovementQueue.end();++iter)
+        for (const auto& m : mMovementQueue)
         {
-            ActorMap::iterator foundActor = mActors.find(iter->first);
+            auto const& character = m.first;
+            auto const& movement = m.second;
+            auto const foundActor = mActors.find(character);
             if (foundActor == mActors.end()) // actor was already removed from the scene
                 continue;
             Actor* physicActor = foundActor->second;
 
             float waterlevel = -std::numeric_limits<float>::max();
-            const MWWorld::CellStore *cell = iter->first.getCell();
+            const MWWorld::CellStore *cell = character.getCell();
             if(cell->getCell()->hasWater())
                 waterlevel = cell->getWaterLevel();
 
-            const MWMechanics::MagicEffects& effects = iter->first.getClass().getCreatureStats(iter->first).getMagicEffects();
+            const MWMechanics::MagicEffects& effects = character.getClass().getCreatureStats(character).getMagicEffects();
 
             bool waterCollision = false;
             if (cell->getCell()->hasWater() && effects.get(ESM::MagicEffect::WaterWalking).getMagnitude())
             {
-                if (!world->isUnderwater(iter->first.getCell(), osg::Vec3f(iter->first.getRefData().getPosition().asVec3())))
+                if (!world->isUnderwater(character.getCell(), osg::Vec3f(character.getRefData().getPosition().asVec3())))
                     waterCollision = true;
-                else if (physicActor->getCollisionMode() && canMoveToWaterSurface(iter->first, waterlevel))
+                else if (physicActor->getCollisionMode() && canMoveToWaterSurface(character, waterlevel))
                 {
                     const osg::Vec3f actorPosition = physicActor->getPosition();
                     physicActor->setPosition(osg::Vec3f(actorPosition.x(), actorPosition.y(), waterlevel));
                     waterCollision = true;
                 }
             }
+
             physicActor->setCanWaterWalk(waterCollision);
 
             // Slow fall reduces fall speed by a factor of (effect magnitude / 200)
-            float slowFall = 1.f - std::max(0.f, std::min(1.f, effects.get(ESM::MagicEffect::SlowFall).getMagnitude() * 0.005f));
+            const float slowFall = 1.f - std::max(0.f, std::min(1.f, effects.get(ESM::MagicEffect::SlowFall).getMagnitude() * 0.005f));
 
-            bool flying = world->isFlying(iter->first);
-            bool swimming = world->isSwimming(iter->first);
+            ActorFrameData frameData {};
+            frameData.actor = physicActor;
+            frameData.ptr = physicActor->getPtr();
+            frameData.movement = movement;
+            frameData.position = physicActor->getPosition();
+            frameData.oldHeight = frameData.position.z();
+            frameData.slowFall = slowFall;
+            if (world->isFlying(character))
+                frameData.state |= ActorFrameState::flying;
+            if (world->isSwimming(character))
+                frameData.state |= ActorFrameState::swimming;
+            if (physicActor->getOnGround())
+                frameData.state |= ActorFrameState::wasOnGround;
+            frameData.waterlevel = waterlevel;
 
-            bool wasOnGround = physicActor->getOnGround();
-            osg::Vec3f position = physicActor->getPosition();
-            float oldHeight = position.z();
-            bool positionChanged = false;
-            for (int i=0; i<numSteps; ++i)
-            {
-                position = MovementSolver::move(position, physicActor->getPtr(), physicActor, iter->second, mPhysicsDt,
-                                                flying, waterlevel, slowFall, mCollisionWorld, mStandingCollisions);
-                if (position != physicActor->getPosition())
-                    positionChanged = true;
-                physicActor->setPosition(position); // always set even if unchanged to make sure interpolation is correct
-            }
-            if (positionChanged)
-                mCollisionWorld->updateSingleAabb(physicActor->getCollisionObject());
-
-            float interpolationFactor = mTimeAccum / mPhysicsDt;
-            osg::Vec3f interpolated = position * interpolationFactor + physicActor->getPreviousPosition() * (1.f - interpolationFactor);
-
-            float heightDiff = position.z() - oldHeight;
-
-            MWMechanics::CreatureStats& stats = iter->first.getClass().getCreatureStats(iter->first);
-            bool isStillOnGround = (numSteps > 0 && wasOnGround && physicActor->getOnGround());
-            if (isStillOnGround || flying || swimming || slowFall < 1)
-                stats.land(iter->first == player && (flying || swimming));
-            else if (heightDiff < 0)
-                stats.addToFallHeight(-heightDiff);
-
-            mMovementResults.push_back(std::make_pair(iter->first, interpolated));
+            mActorsFrameData.push_back(frameData);
         }
-
         mMovementQueue.clear();
+    }
 
-        return mMovementResults;
+    void PhysicsSystem::updateAabbs(const ActorFrameData& actorData)
+    {
+        if (actorData.state & ActorFrameState::positionChanged)
+            mCollisionWorld->updateSingleAabb(actorData.actor->getCollisionObject());
+    }
+
+    void PhysicsSystem::handleFall(const ActorFrameData& actorData, int numSteps)
+    {
+        const MWWorld::Ptr player = MWMechanics::getPlayer();
+        const float heightDiff = actorData.position.z() - actorData.oldHeight;
+
+        const auto& character = actorData.actor->getPtr();
+
+        MWMechanics::CreatureStats& stats = character.getClass().getCreatureStats(character);
+
+        const bool isStillOnGround = (numSteps > 0 && (actorData.state & ActorFrameState::wasOnGround) && actorData.actor->getOnGround());
+
+        if (isStillOnGround || (actorData.state & (ActorFrameState::flying | ActorFrameState::swimming)) || actorData.slowFall < 1)
+            stats.land(character == player && (actorData.state & (ActorFrameState::flying | ActorFrameState::swimming)));
+        else if (heightDiff < 0)
+            stats.addToFallHeight(-heightDiff);
+    }
+
+    void PhysicsSystem::interpolateMovements(const ActorFrameData& actorData)
+    {
+        const float interpolationFactor = mTimeAccum / mPhysicsDt;
+        const osg::Vec3f interpolated = actorData.position * interpolationFactor + actorData.actor->getPreviousPosition() * (1.f - interpolationFactor);
+
+        const auto& character = actorData.actor->getPtr();
+        mMovementResults[character] = interpolated;
     }
 
     void PhysicsSystem::stepSimulation(float dt)
