@@ -108,8 +108,7 @@ void Actor::addCollisionMask(int collisionMask)
 
 void Actor::updateCollisionMask()
 {
-    mCollisionWorld->removeCollisionObject(mCollisionObject.get());
-    addCollisionMask(getCollisionMask());
+    mCollisionObject->getBroadphaseHandle()->m_collisionFilterMask = getCollisionMask();
 }
 
 int Actor::getCollisionMask()
@@ -147,12 +146,13 @@ osg::Vec3f Actor::getCollisionObjectPosition() const
     return Misc::Convert::toOsg(mCollisionObject->getWorldTransform().getOrigin());
 }
 
-void Actor::setPosition(const osg::Vec3f &position)
+void Actor::setPosition(const osg::Vec3f &position, bool updateCollisionObject)
 {
     mPreviousPosition = mPosition;
 
     mPosition = position;
-    updateCollisionObjectPosition();
+    if (updateCollisionObject)
+        updateCollisionObjectPosition();
 }
 
 osg::Vec3f Actor::getPosition() const

@@ -79,8 +79,9 @@ namespace MWPhysics
 
         /**
           * Store the current position into mPreviousPosition, then move to this position.
+          * Optionally, inform the physics engine about the change of position.
           */
-        void setPosition(const osg::Vec3f& position);
+        void setPosition(const osg::Vec3f& position, bool updateCollisionObject=true);
 
         osg::Vec3f getPosition() const;
 

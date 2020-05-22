@@ -22,6 +22,7 @@
 #include "actor.hpp"
 #include "collisiontype.hpp"
 #include "constants.hpp"
+#include "physicssystem.hpp"
 #include "stepper.hpp"
 #include "trace.h"
 
@@ -78,24 +79,26 @@ namespace MWPhysics
         return tracer.mEndPos-offset + osg::Vec3f(0.f, 0.f, sGroundOffset);
     }
 
-    osg::Vec3f MovementSolver::move(osg::Vec3f position, const MWWorld::Ptr &ptr, Actor* physicActor, const osg::Vec3f &movement, float time,
-                                           bool isFlying, float waterlevel, float slowFall, const btCollisionWorld* collisionWorld,
+    void MovementSolver::move(ActorFrameData& data, float time, const btCollisionWorld* collisionWorld,
                                            std::map<MWWorld::Ptr, MWWorld::Ptr>& standingCollisionTracker)
     {
+        auto* physicActor = data.actor;
+        auto ptr = data.ptr;
         const ESM::Position& refpos = ptr.getRefData().getPosition();
         // Early-out for totally static creatures
         // (Not sure if gravity should still apply?)
         if (!ptr.getClass().isMobile(ptr))
-            return position;
+            return;
 
         // Reset per-frame data
         physicActor->setWalkingOnWater(false);
         // Anything to collide with?
         if(!physicActor->getCollisionMode())
         {
-            return position +  (osg::Quat(refpos.rot[0], osg::Vec3f(-1, 0, 0)) *
+            data.position += (osg::Quat(refpos.rot[0], osg::Vec3f(-1, 0, 0)) *
                                 osg::Quat(refpos.rot[2], osg::Vec3f(0, 0, -1))
-                                ) * movement * time;
+                                ) * data.movement * time;
+            return;
         }
 
         const btCollisionObject *colobj = physicActor->getCollisionObject();
@@ -105,23 +108,23 @@ namespace MWPhysics
         // That means the collision shape used for moving this actor is in a different spot than the collision shape
         // other actors are using to collide against this actor.
         // While this is strictly speaking wrong, it's needed for MW compatibility.
-        position.z() += halfExtents.z();
+        data.position.z() += halfExtents.z();
 
         static const float fSwimHeightScale = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fSwimHeightScale")->mValue.getFloat();
-        float swimlevel = waterlevel + halfExtents.z() - (physicActor->getRenderingHalfExtents().z() * 2 * fSwimHeightScale);
+        float swimlevel = data.waterlevel + halfExtents.z() - (physicActor->getRenderingHalfExtents().z() * 2 * fSwimHeightScale);
 
         ActorTracer tracer;
 
         osg::Vec3f inertia = physicActor->getInertialForce();
         osg::Vec3f velocity;
 
-        if (position.z() < swimlevel || isFlying)
+        if (data.position.z() < swimlevel || (data.state & ActorFrameState::flying))
         {
-            velocity = (osg::Quat(refpos.rot[0], osg::Vec3f(-1, 0, 0)) * osg::Quat(refpos.rot[2], osg::Vec3f(0, 0, -1))) * movement;
+            velocity = (osg::Quat(refpos.rot[0], osg::Vec3f(-1, 0, 0)) * osg::Quat(refpos.rot[2], osg::Vec3f(0, 0, -1))) * data.movement;
         }
         else
         {
-            velocity = (osg::Quat(refpos.rot[2], osg::Vec3f(0, 0, -1))) * movement;
+            velocity = (osg::Quat(refpos.rot[2], osg::Vec3f(0, 0, -1))) * data.movement;
 
             if ((velocity.z() > 0.f && physicActor->getOnGround() && !physicActor->getOnSlope())
             || (velocity.z() > 0.f && velocity.z() + inertia.z() <= -velocity.z() && physicActor->getOnSlope()))
@@ -131,7 +134,7 @@ namespace MWPhysics
         }
 
         // dead actors underwater will float to the surface, if the CharacterController tells us to do so
-        if (movement.z() > 0 && ptr.getClass().getCreatureStats(ptr).isDead() && position.z() < swimlevel)
+        if (data.movement.z() > 0 && ptr.getClass().getCreatureStats(ptr).isDead() && data.position.z() < swimlevel)
             velocity = osg::Vec3f(0,0,1) * 25;
 
         if (ptr.getClass().getMovementSettings(ptr).mPosition[2])
@@ -170,7 +173,7 @@ namespace MWPhysics
 
         Stepper stepper(collisionWorld, colobj);
         osg::Vec3f origVelocity = velocity;
-        osg::Vec3f newPosition = position;
+        osg::Vec3f newPosition = data.position;
         /*
          * A loop to find newPosition using tracer, if successful different from the starting position.
          * nextpos is the local variable used to find potential newPosition, using velocity and remainingTime
@@ -182,7 +185,7 @@ namespace MWPhysics
             osg::Vec3f nextpos = newPosition + velocity * remainingTime;
 
             // If not able to fly, don't allow to swim up into the air
-            if(!isFlying && nextpos.z() > swimlevel && newPosition.z() < swimlevel)
+            if(!(data.state & ActorFrameState::flying) && nextpos.z() > swimlevel && newPosition.z() < swimlevel)
             {
                 const osg::Vec3f down(0,0,-1);
                 velocity = slide(velocity, down);
@@ -235,7 +238,7 @@ namespace MWPhysics
             if (result)
             {
                 // don't let pure water creatures move out of water after stepMove
-                if (ptr.getClass().isPureWaterCreature(ptr) && newPosition.z() + halfExtents.z() > waterlevel)
+                if (ptr.getClass().isPureWaterCreature(ptr) && newPosition.z() + halfExtents.z() > data.waterlevel)
                     newPosition = oldPosition;
             }
             else
@@ -245,7 +248,7 @@ namespace MWPhysics
 
                 // Do not allow sliding upward if there is gravity.
                 // Stepping will have taken care of that.
-                if(!(newPosition.z() < swimlevel || isFlying))
+                if(!(newPosition.z() < swimlevel || (data.state & ActorFrameState::flying)))
                     newVelocity.z() = std::min(newVelocity.z(), 0.0f);
 
                 if ((newVelocity-velocity).length2() < 0.01)
@@ -269,11 +272,11 @@ namespace MWPhysics
                 const btCollisionObject* standingOn = tracer.mHitObject;
                 PtrHolder* ptrHolder = static_cast<PtrHolder*>(standingOn->getUserPointer());
                 if (ptrHolder)
-                    standingCollisionTracker[ptr] = ptrHolder->getPtr();
+                    standingCollisionTracker.at(ptr) = ptrHolder->getPtr();
 
                 if (standingOn->getBroadphaseHandle()->m_collisionFilterGroup == CollisionType_Water)
                     physicActor->setWalkingOnWater(true);
-                if (!isFlying)
+                if (!(data.state & ActorFrameState::flying))
                     newPosition.z() = tracer.mEndPos.z() + sGroundOffset;
 
                 isOnGround = true;
@@ -292,7 +295,7 @@ namespace MWPhysics
                         btVector3 aabbMin, aabbMax;
                         tracer.mHitObject->getCollisionShape()->getAabb(tracer.mHitObject->getWorldTransform(), aabbMin, aabbMax);
                         btVector3 center = (aabbMin + aabbMax) / 2.f;
-                        inertia = osg::Vec3f(position.x() - center.x(), position.y() - center.y(), 0);
+                        inertia = osg::Vec3f(data.position.x() - center.x(), data.position.y() - center.y(), 0);
                         inertia.normalize();
                         inertia *= 100;
                     }
@@ -302,16 +305,16 @@ namespace MWPhysics
             }
         }
 
-        if((isOnGround && !isOnSlope) || newPosition.z() < swimlevel || isFlying)
+        if((isOnGround && !isOnSlope) || newPosition.z() < swimlevel || (data.state & ActorFrameState::flying))
             physicActor->setInertialForce(osg::Vec3f(0.f, 0.f, 0.f));
         else
         {
             inertia.z() -= time * Constants::GravityConst * Constants::UnitsPerMeter;
             if (inertia.z() < 0)
-                inertia.z() *= slowFall;
-            if (slowFall < 1.f) {
-                inertia.x() *= slowFall;
-                inertia.y() *= slowFall;
+                inertia.z() *= data.slowFall;
+            if (data.slowFall < 1.f) {
+                inertia.x() *= data.slowFall;
+                inertia.y() *= data.slowFall;
             }
             physicActor->setInertialForce(inertia);
         }
@@ -319,6 +322,6 @@ namespace MWPhysics
         physicActor->setOnSlope(isOnSlope);
 
         newPosition.z() -= halfExtents.z(); // remove what was added at the beginning
-        return newPosition;
+        data.position = newPosition;
     }
 }

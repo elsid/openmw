@@ -12,6 +12,7 @@ option(BUILD_DOCS               "Build documentation." OFF )
 option(BUILD_WITH_CODE_COVERAGE "Enable code coverage with gconv" OFF)
 option(BUILD_UNITTESTS          "Enable Unittests with Google C++ Unittest" OFF)
 option(BULLET_USE_DOUBLES       "Use double precision for Bullet" OFF)
+option(MULTITHREADED_PHYSICS    "Use several threads in physics subsystem" OFF)
 
 if (NOT BUILD_LAUNCHER AND NOT BUILD_OPENCS AND NOT BUILD_WIZARD)
    set(USE_QT FALSE)

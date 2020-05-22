@@ -45,11 +45,33 @@ class btCollisionShape;
 
 namespace MWPhysics
 {
-    typedef std::vector<std::pair<MWWorld::Ptr,osg::Vec3f> > PtrVelocityList;
+    using PtrVelocityList = std::vector<std::pair<MWWorld::Ptr, osg::Vec3f>>;
+    using PtrPositionList = std::map<MWWorld::Ptr, osg::Vec3f>;
 
     class HeightField;
     class Object;
     class Actor;
+    class PhysicsTaskScheduler;
+
+    enum ActorFrameState
+    {
+        flying  = 1 << 0,
+        swimming = 1 << 1,
+        positionChanged = 1 << 2,
+        wasOnGround = 1 << 3
+    };
+
+    struct ActorFrameData
+    {
+        Actor* actor;
+        MWWorld::Ptr ptr;
+        unsigned int state;
+        float waterlevel;
+        float slowFall;
+        float oldHeight;
+        osg::Vec3f movement;
+        osg::Vec3f position;
+    };
 
     class PhysicsSystem
     {
@@ -149,7 +171,8 @@ namespace MWPhysics
             void queueObjectMovement(const MWWorld::Ptr &ptr, const osg::Vec3f &velocity);
 
             /// Apply all queued movements, then clear the list.
-            const PtrVelocityList& applyQueuedMovement(float dt);
+            PtrPositionList& applyQueuedMovement(float dt);
+            void applyQueuedMovementRange(int iBegin, int iEnd);
 
             /// Clear the queued movements list without applying.
             void clearQueuedMovement();
@@ -193,12 +216,18 @@ namespace MWPhysics
 
             void updateWater();
 
+            void prepareFrameData(int numSteps);
+            void updateAabbs(const ActorFrameData& actorData);
+            void handleFall(const ActorFrameData& actorData, int numSteps);
+            void interpolateMovements(const ActorFrameData& actorData);
+
             osg::ref_ptr<SceneUtil::UnrefQueue> mUnrefQueue;
 
             btBroadphaseInterface* mBroadphase;
             btDefaultCollisionConfiguration* mCollisionConfiguration;
             btCollisionDispatcher* mDispatcher;
             btCollisionWorld* mCollisionWorld;
+            std::unique_ptr<PhysicsTaskScheduler> mTaskScheduler;
 
             std::unique_ptr<Resource::BulletShapeManager> mShapeManager;
             Resource::ResourceSystem* mResourceSystem;
@@ -225,7 +254,8 @@ namespace MWPhysics
             void updateCollisionMapPtr(CollisionMap& map, const MWWorld::Ptr &old, const MWWorld::Ptr &updated);
 
             PtrVelocityList mMovementQueue;
-            PtrVelocityList mMovementResults;
+            PtrPositionList mMovementResults;
+            std::vector<ActorFrameData> mActorsFrameData;
 
             float mTimeAccum;
 
