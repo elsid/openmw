@@ -25,7 +25,7 @@ namespace MWPhysics
     class PhysicsTaskScheduler : public btITaskScheduler
     {
         public:
-            PhysicsTaskScheduler();
+            PhysicsTaskScheduler(PhysicsSystem* physics);
             ~PhysicsTaskScheduler() override;
             int getMaxNumThreads() const override { return mNumThreads; };
             int getNumThreads() const override { return mNumThreads; };
@@ -37,33 +37,26 @@ namespace MWPhysics
             btScalar parallelSum(int iBegin, int iEnd, int grainSize, const btIParallelSumBody& body) { return {}; };
 
         private:
-            struct Job
-            {
-                int mBegin;
-                int mEnd;
-                const btIParallelForBody* mBody;
-
-                Job(int iBegin, int iEnd, const btIParallelForBody& body)
-                    : mBegin(iBegin), mEnd(iEnd), mBody(&body)
-                {};
-            };
             void worker();
 
             int mNumThreads;
-            std::atomic_int mJobsDone;
+            int mNumJob;
+            std::atomic_int mNextJob;
+            std::atomic_int mRunningThreads;
             bool mShouldStop;
-            std::vector<Job> mJobs;
             std::vector<std::thread> mThreads;
 
             mutable std::mutex mJobsMutex;
             std::condition_variable mHasJob;
             std::condition_variable_any mDone;
+
+            PhysicsSystem* mPhysics;
     };
 
-    class ApplyQueuedMovementMT : public btIParallelForBody
+    class SingleThreadPhysicsFallback : public btIParallelForBody
     {
         public:
-            explicit ApplyQueuedMovementMT(PhysicsSystem* physics);
+            explicit SingleThreadPhysicsFallback(PhysicsSystem* physics);
             void forLoop(int iBegin, int iEnd) const override;
         private:
             PhysicsSystem* mPhysics;

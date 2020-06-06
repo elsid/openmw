@@ -11,10 +11,14 @@
 
 namespace MWPhysics
 {
-    PhysicsTaskScheduler::PhysicsTaskScheduler()
+    PhysicsTaskScheduler::PhysicsTaskScheduler(PhysicsSystem* physics)
         : btITaskScheduler("physics task scheduler")
         , mNumThreads(Settings::Manager::getInt("solver num threads", "Physics"))
+        , mNumJob(0)
+        , mNextJob(0)
+        , mRunningThreads(0)
         , mShouldStop(false)
+        , mPhysics(physics)
     {
 #ifdef MULTITHREADED_PHYSICS
         mNumThreads = std::max(1, mNumThreads);
@@ -41,53 +45,50 @@ namespace MWPhysics
     {
         std::unique_lock<std::mutex> lock(mJobsMutex);
 
-        for (int i = iBegin; i < iEnd; i += batchsize)
-            mJobs.emplace_back(i, std::min(iEnd, i + batchsize), body);
+        mNumJob = iEnd - iBegin;
+        mNextJob = iBegin;
 
-        std::atomic_init(&mJobsDone, 0);
-        int jobnum = mJobs.size();
-        if (!mJobs.empty())
+        if (mNumJob <= 0)
+            return;
+        mHasJob.notify_all();
+
+        auto const allJobsDone = [&]()
         {
-            mHasJob.notify_all();
-            mDone.wait(lock, [&]() { return mJobs.empty() && std::atomic_load(&mJobsDone) == jobnum; });
-        }
+            // we don't care if we get these values a little bit later, but we do want to reduce contention around them
+            return std::atomic_load_explicit(&mRunningThreads, std::memory_order_relaxed) == 0
+                && std::atomic_load_explicit(&mNextJob, std::memory_order_relaxed) >= mNumJob;
+        };
+        mDone.wait(lock, allJobsDone);
+
+        mNumJob = 0;
     }
 
     void PhysicsTaskScheduler::worker()
     {
         while (!mShouldStop)
         {
-            std::unique_lock<std::mutex> lock(mJobsMutex);
-
-            if (!mHasJob.wait_for(lock, std::chrono::milliseconds(10), [&]() { return mShouldStop || !mJobs.empty(); }))
             {
-                mDone.notify_one();
-            }
-            else
-            {
-                if (!mJobs.empty())
-                {
-                    auto job = mJobs.back();
-                    mJobs.pop_back();
-                    lock.unlock();
-
-                    job.mBody->forLoop(job.mBegin, job.mEnd);
-
-                    std::atomic_fetch_add(&mJobsDone, 1);
-                }
-                mDone.notify_one();
+                std::unique_lock<std::mutex> lock(mJobsMutex);
+                mHasJob.wait(lock, [&]() { return mShouldStop || mNumJob > 0; });
             }
 
+            int job = 0;
+            std::atomic_fetch_add(&mRunningThreads, 1);
+            while((job = std::atomic_fetch_add(&mNextJob, 1)) < mNumJob)
+                mPhysics->applyQueuedMovementActor(job);
+            std::atomic_fetch_sub(&mRunningThreads, 1);
+            mDone.notify_one();
         }
     }
 
-    ApplyQueuedMovementMT::ApplyQueuedMovementMT(PhysicsSystem* physics)
+    SingleThreadPhysicsFallback::SingleThreadPhysicsFallback(PhysicsSystem* physics)
         : mPhysics(physics)
     {}
 
-    void ApplyQueuedMovementMT::forLoop(int iBegin, int iEnd) const
+    void SingleThreadPhysicsFallback::forLoop(int iBegin, int iEnd) const
     {
-        mPhysics->applyQueuedMovementRange(iBegin, iEnd);
+        for (int i = iBegin; i < iEnd; ++i)
+            mPhysics->applyQueuedMovementActor(i);
     }
 
     void CheckBulletMultithreadingSupport::forLoop(int iBegin, int iEnd) const

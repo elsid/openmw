@@ -172,7 +172,7 @@ namespace MWPhysics
 
             /// Apply all queued movements, then clear the list.
             PtrPositionList& applyQueuedMovement(float dt);
-            void applyQueuedMovementRange(int iBegin, int iEnd);
+            void applyQueuedMovementActor(int index);
 
             /// Clear the queued movements list without applying.
             void clearQueuedMovement();

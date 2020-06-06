@@ -88,7 +88,7 @@ namespace MWPhysics
             }
         }
 
-        mTaskScheduler = std::make_unique<PhysicsTaskScheduler>();
+        mTaskScheduler = std::make_unique<PhysicsTaskScheduler>(this);
         btSetTaskScheduler(mTaskScheduler.get());
         btParallelFor(0, 0, 0, CheckBulletMultithreadingSupport());
     }
@@ -695,11 +695,10 @@ namespace MWPhysics
 
         prepareFrameData(numSteps);
 
-        const auto batchsize = std::max<int>(1, mActorsFrameData.size() / mTaskScheduler->getNumThreads());
         for (int i=0; i<numSteps; ++i)
         {
             // compute next position for all actors
-            btParallelFor(0, mActorsFrameData.size(), batchsize, ApplyQueuedMovementMT(this));
+            btParallelFor(0, mActorsFrameData.size(), 0, SingleThreadPhysicsFallback(this));
 
             // update collision world with actors new positions
             for (auto& actorData : mActorsFrameData)
@@ -723,10 +722,9 @@ namespace MWPhysics
         return mMovementResults;
     }
 
-    void PhysicsSystem::applyQueuedMovementRange(int iBegin, int iEnd)
+    void PhysicsSystem::applyQueuedMovementActor(int index)
     {
-        for (int i = iBegin; i < iEnd; ++i)
-            MovementSolver::move(mActorsFrameData[i], mPhysicsDt, mCollisionWorld, mStandingCollisions);
+        MovementSolver::move(mActorsFrameData[index], mPhysicsDt, mCollisionWorld, mStandingCollisions);
     }
 
     void PhysicsSystem::prepareFrameData(int numSteps)
