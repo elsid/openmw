@@ -117,7 +117,7 @@ while [ $# -gt 0 ]; do
 
 			n )
 				NMAKE=true ;;
-			
+
 			N )
 				NINJA=true ;;
 
@@ -961,7 +961,8 @@ if [ -n "$ACTIVATE_MSVC" ]; then
 	echo -n "- Activating MSVC in the current shell... "
 	command -v vswhere >/dev/null 2>&1 || { echo "Error: vswhere is not on the path."; wrappedExit 1; }
 
-	MSVC_INSTALLATION_PATH=$(vswhere -legacy -products '*' -version "[$MSVC_VER,$(awk "BEGIN { print $MSVC_REAL_VER + 1; exit }"))" -property installationPath)
+	VERSION="[$MSVC_VER,$(awk "BEGIN { print $MSVC_REAL_VER + 1; exit }"))"
+	MSVC_INSTALLATION_PATH=$(vswhere -legacy -products '*' -version "${VERSION}" -property installationPath | fgrep -v TestAgent)
 	if [ $MSVC_REAL_VER -ge 15 ]; then
 		echo "@\"${MSVC_INSTALLATION_PATH}\Common7\Tools\VsDevCmd.bat\" -no_logo -arch=$([ $BITS -eq 64 ] && echo "amd64" || echo "x86") -host_arch=$([ $(uname -m) == 'x86_64' ] && echo "amd64" || echo "x86")" > ActivateMSVC.bat
 	else
@@ -980,11 +981,11 @@ if [ -n "$ACTIVATE_MSVC" ]; then
 		fi
 		echo "@\"${MSVC_INSTALLATION_PATH}\VC\vcvarsall.bat\" $compiler" > ActivateMSVC.bat
 	fi
-	
+
 	cp "../CI/activate_msvc.sh" .
 	sed -i "s/\$MSVC_DISPLAY_YEAR/$MSVC_DISPLAY_YEAR/g" activate_msvc.sh
 	source ./activate_msvc.sh
-	
+
 	cp "../CI/ActivateMSVC.ps1" .
 	sed -i "s/\$MSVC_DISPLAY_YEAR/$MSVC_DISPLAY_YEAR/g" ActivateMSVC.ps1
 

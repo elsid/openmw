@@ -50,12 +50,13 @@ install:
 
 before_build:
     - cmd: git submodule update --init --recursive
-    - cmd: sh -ex %APPVEYOR_BUILD_FOLDER%\CI\before_script.msvc.sh -c %configuration% -p %PLATFORM% -v %msvc% -V -i %APPVEYOR_BUILD_FOLDER%\install -N
+    - cmd: sh %APPVEYOR_BUILD_FOLDER%\CI\before_script.msvc.sh -c %configuration% -p %PLATFORM% -v %msvc% -V -i %APPVEYOR_BUILD_FOLDER%\install -N
 
 build_script:
-    - cmd: if %PLATFORM%==Win32 set build=MSVC%msvc%_32
-    - cmd: if %PLATFORM%==x64 set build=MSVC%msvc%_64
-    - cmd: cmake --build %build% --config %configuration% --parallel
+    - cmd: if %PLATFORM%==Win32 set build=MSVC%msvc%_32_Ninja_%configuration%
+    - cmd: if %PLATFORM%==x64 set build=MSVC%msvc%_64_Ninja_%configuration%
+    - cmd: '%build%/ActivateMSVC.bat'
+    - cmd: cmake --build %build% --config %configuration% --parallel 2
     - cmd: cmake --install %build% --config %configuration%
 
 after_build:
