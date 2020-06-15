@@ -20,6 +20,19 @@ namespace DetourNavigator
     {
         return lhs.mCellSize == rhs.mCellSize && lhs.mTransform == rhs.mTransform;
     }
+
+    template <class T>
+    static inline std::ostream& operator <<(std::ostream& stream, const std::vector<T>& values)
+    {
+        stream << "{";
+        for (std::size_t i = 0; i < values.size(); ++i)
+        {
+            if (i % 3 == 0)
+                stream << "\n";
+            stream << values[i] << ", ";
+        }
+        return stream << "\n}";
+    }
 }
 
 namespace
@@ -169,6 +182,9 @@ namespace
             1, 0, -1,
             -1, 0, 1,
             -1, 0, -1,
+            1, 0, -1,
+            -1, 0, 1,
+            1, 0, 1,
             1, 2, 1,
             -1, 2, 1,
             1, 2, -1,
@@ -177,25 +193,23 @@ namespace
             -1, -2, 1,
             1, -2, -1,
             -1, -2, -1,
-            1, 0, -1,
-            -1, 0, 1,
-            1, 0, 1,
         }));
+        std::cout << recastMesh->getIndices() << std::endl;
         EXPECT_EQ(recastMesh->getIndices(), std::vector<int>({
             0, 1, 2,
-            3, 5, 6,
-            6, 4, 3,
-            3, 7, 9,
-            9, 5, 3,
-            3, 4, 8,
-            8, 7, 3,
-            10, 8, 4,
-            4, 6, 10,
-            10, 6, 5,
-            5, 9, 10,
-            10, 9, 7,
-            7, 8, 10,
-            11, 12, 13,
+            3, 4, 5,
+            6, 8, 9,
+            9, 7, 6,
+            6, 10, 12,
+            12, 8, 6,
+            6, 7, 11,
+            11, 10, 6,
+            13, 11, 7,
+            7, 9, 13,
+            13, 9, 8,
+            8, 12, 13,
+            13, 12, 10,
+            10, 11, 13,
         }));
         EXPECT_EQ(recastMesh->getAreaTypes(), std::vector<AreaType>(14, AreaType_ground));
     }

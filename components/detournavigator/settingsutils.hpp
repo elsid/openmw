@@ -36,11 +36,22 @@ namespace DetourNavigator
         return value * settings.mRecastScaleFactor;
     }
 
-    inline osg::Vec3f toNavMeshCoordinates(const Settings& settings, osg::Vec3f position)
+    template <class T>
+    inline auto toNavMeshCoordinates(const Settings& settings, const T& position)
     {
-        std::swap(position.y(), position.z());
-        return position * settings.mRecastScaleFactor;
+        return std::decay_t<T>(position.x(), position.z(), position.y()) * settings.mRecastScaleFactor;
     }
+
+    template <class T>
+    struct ToNavMeshCoordinates
+    {
+        const Settings& mSettings;
+
+        T operator()(const T& worldPosition) const
+        {
+            return toNavMeshCoordinates(mSettings, worldPosition);
+        }
+    };
 
     inline osg::Vec3f fromNavMeshCoordinates(const Settings& settings, osg::Vec3f position)
     {
