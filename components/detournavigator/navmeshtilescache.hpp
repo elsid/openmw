@@ -182,6 +182,8 @@ namespace DetourNavigator
         std::list<Item> mBusyItems;
         std::list<Item> mFreeItems;
         std::map<osg::Vec3f, std::map<TilePosition, TileMap>> mValues;
+        std::size_t mCacheGet = 0;
+        std::size_t mCacheHit = 0;
 
         void removeLeastRecentlyUsed();
 

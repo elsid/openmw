@@ -303,6 +303,7 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase *viewer)
             "NavMesh CacheSize",
             "NavMesh UsedTiles",
             "NavMesh CachedTiles",
+            "NavMesh CacheHitRate",
             "",
             "Mechanics Actors",
             "Mechanics Objects",
