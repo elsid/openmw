@@ -4,6 +4,7 @@
 #include <deque>
 #include <memory>
 #include <vector>
+#include <mutex>
 
 namespace Misc
 {
@@ -30,19 +31,6 @@ namespace Misc
     };
 
     template <class T>
-    struct ObjectPtr final : std::unique_ptr<T, ObjectPtrDeleter<T>>
-    {
-        using std::unique_ptr<T, ObjectPtrDeleter<T>>::unique_ptr;
-        using std::unique_ptr<T, ObjectPtrDeleter<T>>::operator=;
-
-        ObjectPtr()
-            : ObjectPtr(nullptr) {}
-
-        ObjectPtr(std::nullptr_t)
-            : std::unique_ptr<T, ObjectPtrDeleter<T>>(nullptr, nullptr) {}
-    };
-
-    template <class T>
     class ObjectPool
     {
         friend class ObjectPtrDeleter<T>;
@@ -51,30 +39,36 @@ namespace Misc
             ObjectPool()
                 : mObjects(std::make_unique<std::deque<T>>()) {}
 
-            ObjectPtr<T> get()
+            std::shared_ptr<T> get()
             {
                 T* object;
 
-                if (!mUnused.empty())
                 {
-                    object = mUnused.back();
-                    mUnused.pop_back();
-                }
-                else
-                {
-                    mObjects->emplace_back();
-                    object = &mObjects->back();
+                    std::lock_guard<std::mutex> lock(mMutex);
+
+                    if (!mUnused.empty())
+                    {
+                        object = mUnused.back();
+                        mUnused.pop_back();
+                    }
+                    else
+                    {
+                        mObjects->emplace_back();
+                        object = &mObjects->back();
+                    }
                 }
 
-                return ObjectPtr<T>(object, ObjectPtrDeleter<T>(*this));
+                return std::shared_ptr<T>(object, ObjectPtrDeleter<T>(*this));
             }
 
         private:
-            std::unique_ptr<std::deque<T>> mObjects;
+            std::mutex mMutex;
+            std::shared_ptr<std::deque<T>> mObjects;
             std::vector<T*> mUnused;
 
             void recycle(T* object)
             {
+                std::lock_guard<std::mutex> lock(mMutex);
                 mUnused.push_back(object);
             }
     };

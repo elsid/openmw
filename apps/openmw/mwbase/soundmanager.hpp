@@ -57,6 +57,10 @@ namespace MWBase
 {
     using Sound = MWSound::Sound;
     using SoundStream = MWSound::Stream;
+    using SoundPtr = std::shared_ptr<Sound>;
+    using SoundStreamPtr = std::shared_ptr<SoundStream>;
+    using SoundRef = std::weak_ptr<Sound>;
+    using SoundStreamRef = std::weak_ptr<SoundStream>;
 
     /// \brief Interface for sound manager (implemented in MWSound)
     class SoundManager
@@ -116,36 +120,36 @@ namespace MWBase
             /// and get an average loudness value (scale [0,1]) at the current time position.
             /// If the actor is not saying anything, returns 0.
 
-            virtual SoundStream *playTrack(const MWSound::DecoderPtr& decoder, Type type) = 0;
+            virtual SoundStreamRef playTrack(const MWSound::DecoderPtr& decoder, Type type) = 0;
             ///< Play a 2D audio track, using a custom decoder. The caller is expected to call
             /// stopTrack with the returned handle when done.
 
-            virtual void stopTrack(SoundStream *stream) = 0;
+            virtual void stopTrack(SoundStreamPtr stream) = 0;
             ///< Stop the given audio track from playing
 
-            virtual double getTrackTimeDelay(SoundStream *stream) = 0;
+            virtual double getTrackTimeDelay(SoundStreamPtr stream) = 0;
             ///< Retives the time delay, in seconds, of the audio track (must be a sound
             /// returned by \ref playTrack). Only intended to be called by the track
             /// decoder's read method.
 
-            virtual Sound *playSound(const std::string& soundId, float volume, float pitch,
+            virtual SoundRef playSound(const std::string& soundId, float volume, float pitch,
                                      Type type=Type::Sfx, PlayMode mode=PlayMode::Normal,
                                      float offset=0) = 0;
             ///< Play a sound, independently of 3D-position
             ///< @param offset Number of seconds into the sound to start playback.
 
-            virtual Sound *playSound3D(const MWWorld::ConstPtr &reference, const std::string& soundId,
+            virtual SoundRef playSound3D(const MWWorld::ConstPtr &reference, const std::string& soundId,
                                        float volume, float pitch, Type type=Type::Sfx,
                                        PlayMode mode=PlayMode::Normal, float offset=0) = 0;
             ///< Play a 3D sound attached to an MWWorld::Ptr. Will be updated automatically with the Ptr's position, unless Play_NoTrack is specified.
             ///< @param offset Number of seconds into the sound to start playback.
 
-            virtual Sound *playSound3D(const osg::Vec3f& initialPos, const std::string& soundId,
+            virtual SoundRef playSound3D(const osg::Vec3f& initialPos, const std::string& soundId,
                                        float volume, float pitch, Type type=Type::Sfx,
                                        PlayMode mode=PlayMode::Normal, float offset=0) = 0;
             ///< Play a 3D sound at \a initialPos. If the sound should be moving, it must be updated using Sound::setPosition.
 
-            virtual void stopSound(Sound *sound) = 0;
+            virtual void stopSound(SoundPtr sound) = 0;
             ///< Stop the given sound from playing
 
             virtual void stopSound3D(const MWWorld::ConstPtr &reference, const std::string& soundId) = 0;

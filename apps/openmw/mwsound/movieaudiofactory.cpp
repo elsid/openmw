@@ -37,7 +37,7 @@ namespace MWSound
     {
     public:
         MovieAudioDecoder(Video::VideoState *videoState)
-            : Video::MovieAudioDecoder(videoState), mAudioTrack(nullptr)
+            : Video::MovieAudioDecoder(videoState)
         {
             mDecoderBridge.reset(new MWSoundDecoderBridge(this));
         }
@@ -60,7 +60,7 @@ namespace MWSound
         virtual double getAudioClock()
         {
             return (double)getSampleOffset()/(double)mAudioContext->sample_rate -
-                   MWBase::Environment::get().getSoundManager()->getTrackTimeDelay(mAudioTrack);
+                   MWBase::Environment::get().getSoundManager()->getTrackTimeDelay(mAudioTrack.lock());
         }
 
         virtual void adjustAudioSettings(AVSampleFormat& sampleFormat, uint64_t& channelLayout, int& sampleRate)
@@ -85,13 +85,12 @@ namespace MWSound
     public:
         ~MovieAudioDecoder()
         {
-            if(mAudioTrack)
-                MWBase::Environment::get().getSoundManager()->stopTrack(mAudioTrack);
-            mAudioTrack = nullptr;
+            if(const auto track = mAudioTrack.lock())
+                MWBase::Environment::get().getSoundManager()->stopTrack(track);
             mDecoderBridge.reset();
         }
 
-        MWBase::SoundStream *mAudioTrack;
+        MWBase::SoundStreamRef mAudioTrack;
         std::shared_ptr<MWSoundDecoderBridge> mDecoderBridge;
     };
 
@@ -159,8 +158,8 @@ namespace MWSound
         decoder->setupFormat();
 
         MWBase::SoundManager *sndMgr = MWBase::Environment::get().getSoundManager();
-        MWBase::SoundStream *sound = sndMgr->playTrack(decoder->mDecoderBridge, MWSound::Type::Movie);
-        if (!sound)
+        MWBase::SoundStreamRef sound = sndMgr->playTrack(decoder->mDecoderBridge, MWSound::Type::Movie);
+        if (!sound.lock())
         {
             decoder.reset();
             return decoder;

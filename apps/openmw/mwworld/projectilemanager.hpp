@@ -101,7 +101,7 @@ namespace MWWorld
 
             float mSpeed;
 
-            std::vector<MWBase::Sound*> mSounds;
+            std::vector<MWBase::SoundRef> mSounds;
             std::set<std::string> mSoundIds;
         };
 

@@ -349,7 +349,7 @@ NpcAnimation::NpcAnimation(const MWWorld::Ptr& ptr, osg::ref_ptr<osg::Group> par
         mPartPriorities[i] = 0;
     }
 
-    std::fill(mSounds.begin(), mSounds.end(), nullptr);
+    std::fill(mSounds.begin(), mSounds.end(), MWBase::SoundRef());
 
     updateNpcBase();
 }
@@ -758,10 +758,11 @@ void NpcAnimation::removeIndividualPart(ESM::PartReferenceType type)
     mPartslots[type] = -1;
 
     mObjectParts[type].reset();
-    if (mSounds[type] != nullptr && !mSoundsDisabled)
+    const auto sound = mSounds[type].lock();
+    if (sound != nullptr && !mSoundsDisabled)
     {
-        MWBase::Environment::get().getSoundManager()->stopSound(mSounds[type]);
-        mSounds[type] = nullptr;
+        MWBase::Environment::get().getSoundManager()->stopSound(sound);
+        mSounds[type].reset();
     }
 }
 

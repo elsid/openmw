@@ -306,10 +306,10 @@ namespace MWWorld
         MWBase::SoundManager *sndMgr = MWBase::Environment::get().getSoundManager();
         for (const std::string &soundid : state.mSoundIds)
         {
-            MWBase::Sound *sound = sndMgr->playSound3D(pos, soundid, 1.0f, 1.0f,
+            MWBase::SoundRef sound = sndMgr->playSound3D(pos, soundid, 1.0f, 1.0f,
                                                        MWSound::Type::Sfx, MWSound::PlayMode::Loop);
-            if (sound)
-                state.mSounds.push_back(sound);
+            if (const auto locked = sound.lock())
+                state.mSounds.push_back(locked);
         }
             
         mMagicBolts.push_back(state);
@@ -410,7 +410,8 @@ namespace MWWorld
 
             for (size_t soundIter = 0; soundIter != it->mSounds.size(); soundIter++)
             {
-                it->mSounds.at(soundIter)->setPosition(newPos);
+                if (const auto sound = it->mSounds.at(soundIter).lock())
+                    sound->setPosition(newPos);
             }
 
             it->mNode->setPosition(newPos);
@@ -456,7 +457,8 @@ namespace MWWorld
 
                 MWBase::SoundManager *sndMgr = MWBase::Environment::get().getSoundManager();
                 for (size_t soundIter = 0; soundIter != it->mSounds.size(); soundIter++)
-                    sndMgr->stopSound(it->mSounds.at(soundIter));
+                    if (const auto sound = it->mSounds.at(soundIter).lock())
+                        sndMgr->stopSound(sound);
 
                 mParent->removeChild(it->mNode);
 
@@ -545,7 +547,8 @@ namespace MWWorld
         mParent->removeChild(state.mNode);
         for (size_t soundIter = 0; soundIter != state.mSounds.size(); soundIter++)
         {
-            MWBase::Environment::get().getSoundManager()->stopSound(state.mSounds.at(soundIter));
+            if (const auto sound = state.mSounds.at(soundIter).lock())
+                MWBase::Environment::get().getSoundManager()->stopSound(sound);
         }
     }
 
@@ -681,10 +684,10 @@ namespace MWWorld
             MWBase::SoundManager *sndMgr = MWBase::Environment::get().getSoundManager();
             for (const std::string &soundid : state.mSoundIds)
             {
-                MWBase::Sound *sound = sndMgr->playSound3D(esm.mPosition, soundid, 1.0f, 1.0f,
+                MWBase::SoundRef sound = sndMgr->playSound3D(esm.mPosition, soundid, 1.0f, 1.0f,
                                                            MWSound::Type::Sfx, MWSound::PlayMode::Loop);
-                if (sound)
-                    state.mSounds.push_back(sound);
+                if (const auto locked = sound.lock())
+                    state.mSounds.push_back(locked);
             }
 
             mMagicBolts.push_back(state);

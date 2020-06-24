@@ -42,7 +42,7 @@
 #include "mwscript/scriptmanagerimp.hpp"
 #include "mwscript/interpretercontext.hpp"
 
-#include "mwsound/soundmanagerimp.hpp"
+#include "mwsound/asyncsoundmanager.hpp"
 
 #include "mwworld/class.hpp"
 #include "mwworld/player.hpp"
@@ -681,7 +681,7 @@ void OMW::Engine::prepareEngine (Settings::Manager & settings)
     mEnvironment.setInputManager (input);
 
     // Create sound system
-    mEnvironment.setSoundManager (new MWSound::SoundManager(mVFS.get(), mUseSound));
+    mEnvironment.setSoundManager(new MWSound::AsyncSoundManager(mVFS.get(), mUseSound));
 
     if (!mSkipMenu)
     {

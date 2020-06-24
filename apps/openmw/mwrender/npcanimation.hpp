@@ -4,6 +4,7 @@
 #include "animation.hpp"
 
 #include "../mwworld/inventorystore.hpp"
+#include "../mwbase/soundmanager.hpp"
 
 #include "actoranimation.hpp"
 #include "weaponanimation.hpp"
@@ -47,7 +48,7 @@ private:
 
     // Bounded Parts
     PartHolderPtr mObjectParts[ESM::PRT_Count];
-    std::array<MWSound::Sound*, ESM::PRT_Count> mSounds;
+    std::array<MWBase::SoundRef, ESM::PRT_Count> mSounds;
 
     const ESM::NPC *mNpc;
     std::string    mHeadModel;
