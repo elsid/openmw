@@ -1,9 +1,9 @@
 language: cpp
-branches:
-  only:
-    - master
-    - coverity_scan
-    - /openmw-.*$/
+# branches:
+#   only:
+#     - master
+#     - coverity_scan
+#     - /openmw-.*$/
 env:
   global:
    # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
