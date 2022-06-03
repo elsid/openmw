@@ -314,6 +314,7 @@ add_component_dir(detournavigator
     navmeshdbutils
     recast
     gettilespositions
+    collisionshapetype
     )
 
 add_component_dir(loadinglistener

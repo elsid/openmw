@@ -474,3 +474,19 @@ day night switches
 :Default:	True
 
 Some mods add models which change visuals based on time of day. When this setting is enabled, supporting models will automatically make use of Day/night state.
+
+actor collision shape type
+--------------------
+
+:Type:		integer
+:Range:		0, 1, 2
+:Default:	0 (Axis-aligned bounding box)
+
+Collision is used for both physics simulation and navigation mesh generation for pathfinding.
+Cylinder gives the best consistency bewtween available navigation paths and ability to move by them.
+Changing this value affects navigation mesh generation therefore navigation mesh disk cache generated for one value
+will not be useful with another.
+
+* 0: Axis-aligned bounding box
+* 1: Rotating box
+* 2: Cylinder
