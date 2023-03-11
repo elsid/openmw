@@ -1,6 +1,5 @@
 # local files
 set(GAME
-    main.cpp
     engine.cpp
     options.cpp
 
@@ -16,7 +15,7 @@ set(GAME_HEADER
     engine.hpp
 )
 
-source_group(game FILES ${GAME} ${GAME_HEADER})
+source_group(apps/openmw FILES main.cpp ${GAME} ${GAME_HEADER})
 
 add_openmw_dir (mwrender
     actors objects renderingmanager animation rotatecontroller sky skyutil npcanimation esm4npcanimation vismask
@@ -120,13 +119,27 @@ add_openmw_dir (mwbase
 # Main executable
 
 if (NOT ANDROID)
-    openmw_add_executable(openmw
+    add_library(openmw-lib STATIC
         ${OPENMW_FILES}
-        ${GAME} ${GAME_HEADER}
-        ${APPLE_BUNDLE_RESOURCES}
+        ${GAME}
+        ${GAME_HEADER}
     )
+
+    # Otherwise linker fails with LNK1149 because main.cpp has __declspec(dllexport)
+    if(NOT WIN32)
+        set_target_properties(openmw-lib PROPERTIES OUTPUT_NAME openmw)
+    endif()
+
+    openmw_add_executable(openmw
+        ${APPLE_BUNDLE_RESOURCES}
+        main.cpp
+    )
+
+    target_link_libraries(openmw openmw-lib)
+
+    set(OPENMW_TARGET openmw-lib)
 else ()
-    add_library(openmw
+    add_library(openmw-lib
         SHARED
         ${OPENMW_FILES}
         ${GAME} ${GAME_HEADER}
@@ -139,7 +152,7 @@ include_directories(
     ${FFmpeg_INCLUDE_DIRS}
 )
 
-target_link_libraries(openmw
+target_link_libraries(openmw-lib
     # CMake's built-in OSG finder does not use pkgconfig, so we have to
     # manually ensure the order is correct for inter-library dependencies.
     # This only makes a difference with `-DOPENMW_USE_SYSTEM_OSG=ON -DOSG_STATIC=ON`.
@@ -163,7 +176,7 @@ target_link_libraries(openmw
 )
 
 if (MSVC AND PRECOMPILE_HEADERS_WITH_MSVC)
-    target_precompile_headers(openmw PRIVATE
+    target_precompile_headers(openmw-lib PRIVATE
         <boost/program_options/options_description.hpp>
 
         <sol/sol.hpp>
@@ -191,20 +204,20 @@ endif()
 add_definitions(-DMYGUI_DONT_USE_OBSOLETE=ON)
 
 if (ANDROID)
-    target_link_libraries(openmw EGL android log z)
+    target_link_libraries(openmw-lib EGL android log z)
 endif (ANDROID)
 
 if (USE_SYSTEM_TINYXML)
-    target_link_libraries(openmw ${TinyXML_LIBRARIES})
+    target_link_libraries(openmw-lib ${TinyXML_LIBRARIES})
 endif()
 
 if (NOT UNIX)
-    target_link_libraries(openmw ${SDL2MAIN_LIBRARY})
+    target_link_libraries(openmw-lib ${SDL2MAIN_LIBRARY})
 endif()
 
 # Fix for not visible pthreads functions for linker with glibc 2.15
 if (UNIX AND NOT APPLE)
-    target_link_libraries(openmw ${CMAKE_THREAD_LIBS_INIT})
+    target_link_libraries(openmw-lib ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
 if(APPLE)
@@ -236,8 +249,12 @@ if(APPLE)
 endif(APPLE)
 
 if (BUILD_WITH_CODE_COVERAGE)
-    target_compile_options(openmw PRIVATE --coverage)
-    target_link_libraries(openmw gcov)
+    target_compile_options(openmw-lib PRIVATE --coverage)
+    target_link_libraries(openmw-lib gcov)
+    if (NOT ANDROID)
+        target_compile_options(openmw PRIVATE --coverage)
+        target_link_libraries(openmw gcov)
+    endif()
 endif()
 
 if (WIN32)
