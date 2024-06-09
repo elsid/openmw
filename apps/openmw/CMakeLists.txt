@@ -129,22 +129,24 @@ if (NOT ANDROID)
     if(NOT WIN32)
         set_target_properties(openmw-lib PROPERTIES OUTPUT_NAME openmw)
     endif()
-
-    openmw_add_executable(openmw
-        ${APPLE_BUNDLE_RESOURCES}
-        main.cpp
-    )
-
-    target_link_libraries(openmw openmw-lib)
-
-    set(OPENMW_TARGET openmw-lib)
-else ()
-    add_library(openmw-lib
-        SHARED
-        ${OPENMW_FILES}
-        ${GAME} ${GAME_HEADER}
-    )
 endif ()
+
+if(BUILD_OPENMW)
+    if (ANDROID)
+        add_library(openmw-lib SHARED
+            ${OPENMW_FILES}
+            ${GAME}
+            ${GAME_HEADER}
+        )
+    else()
+        openmw_add_executable(openmw
+            ${APPLE_BUNDLE_RESOURCES}
+            main.cpp
+        )
+
+        target_link_libraries(openmw openmw-lib)
+    endif()
+endif()
 
 # Sound stuff - here so CMake doesn't stupidly recompile EVERYTHING
 # when we change the backend.
@@ -220,7 +222,7 @@ if (UNIX AND NOT APPLE)
     target_link_libraries(openmw-lib ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
-if(APPLE)
+if(APPLE AND BUILD_OPENMW)
     set(BUNDLE_RESOURCES_DIR "${APP_BUNDLE_DIR}/Contents/Resources")
 
     set(OPENMW_RESOURCES_ROOT ${BUNDLE_RESOURCES_DIR})
@@ -251,12 +253,12 @@ endif(APPLE)
 if (BUILD_WITH_CODE_COVERAGE)
     target_compile_options(openmw-lib PRIVATE --coverage)
     target_link_libraries(openmw-lib gcov)
-    if (NOT ANDROID)
+    if (NOT ANDROID AND BUILD_OPENMW)
         target_compile_options(openmw PRIVATE --coverage)
         target_link_libraries(openmw gcov)
     endif()
 endif()
 
-if (WIN32)
+if (WIN32 AND BUILD_OPENMW)
     INSTALL(TARGETS openmw RUNTIME DESTINATION ".")
 endif (WIN32)

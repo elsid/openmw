@@ -194,11 +194,6 @@ if(BUILD_OPENCS)
     )
 
     target_link_libraries(openmw-cs openmw-cs-lib)
-
-    if (BUILD_WITH_CODE_COVERAGE)
-        target_compile_options(openmw-cs-lib PRIVATE --coverage)
-        target_link_libraries(openmw-cs-lib gcov)
-    endif()
 endif()
 
 if(APPLE AND BUILD_OPENCS)
