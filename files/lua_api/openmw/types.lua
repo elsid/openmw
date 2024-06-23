@@ -3,10 +3,10 @@
 -- @module types
 -- @usage local types = require('openmw.types')
 
---- Common @{#Actor} functions for Creature, NPC, and Player.
+--- Common @{#Actor} functions for Creature, NPC, and Player test1.
 -- @field [parent=#types] #Actor Actor
 
---- Common functions for Creature, NPC, and Player.
+--- Common functions for Creature, NPC, and Player test2.
 -- @type Actor
 
 ---
