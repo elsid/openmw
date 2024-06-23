@@ -809,14 +809,14 @@
 -- @return #boolean
 
 --- Creature.TYPE
--- @type CreatureTYPE
+-- @type Creature.TYPE
 -- @field #number Creatures
 -- @field #number Daedra
 -- @field #number Undead
 -- @field #number Humanoid
 
---- @{#CreatureTYPE}
--- @field [parent=#Creature] #CreatureTYPE TYPE
+--- @{#Creature.TYPE}
+-- @field [parent=#Creature] #Creature.TYPE TYPE
 
 ---
 -- Returns the read-only @{#CreatureRecord} of a creature
@@ -1291,7 +1291,7 @@
 -- @return #boolean
 
 --- Armor.TYPE
--- @type ArmorTYPE
+-- @type Armor.TYPE
 -- @field #number Helmet
 -- @field #number Cuirass
 -- @field #number LPauldron
@@ -1311,8 +1311,8 @@
 -- @usage local record = types.Armor.records['example_recordid']
 -- @usage local record = types.Armor.records[1]
 
---- @{#ArmorTYPE}
--- @field [parent=#Armor] #ArmorTYPE TYPE
+--- @{#Armor.TYPE}
+-- @field [parent=#Armor] #Armor.TYPE TYPE
 
 ---
 -- Returns the read-only @{#ArmorRecord} of an Armor
@@ -1453,7 +1453,7 @@
 -- @return #boolean
 
 --- Clothing.TYPE
--- @type ClothingTYPE
+-- @type Clothing.TYPE
 -- @field #number Amulet
 -- @field #number Belt
 -- @field #number LGlove
@@ -1465,8 +1465,8 @@
 -- @field #number Shoes
 -- @field #number Skirt
 
---- @{#ClothingTYPE}
--- @field [parent=#Clothing] #ClothingTYPE TYPE
+--- @{#Clothing.TYPE}
+-- @field [parent=#Clothing] #Clothing.TYPE TYPE
 
 ---
 -- Returns the read-only @{#ClothingRecord} of a Clothing
@@ -1787,7 +1787,7 @@
 -- @return #boolean
 
 --- Weapon.TYPE
--- @type WeaponTYPE
+-- @type Weapon.TYPE
 -- @field #number ShortBladeOneHand
 -- @field #number LongBladeOneHand
 -- @field #number LongBladeTwoHand
@@ -1803,8 +1803,8 @@
 -- @field #number Arrow
 -- @field #number Bolt
 
---- @{#WeaponTYPE}
--- @field [parent=#Weapon] #WeaponTYPE TYPE
+--- @{#Weapon.TYPE}
+-- @field [parent=#Weapon] #Weapon.TYPE TYPE
 
 ---
 -- Returns the read-only @{#WeaponRecord} of a weapon
@@ -1866,14 +1866,14 @@
 -- @return #boolean
 
 --- Apparatus.TYPE
--- @type ApparatusTYPE
+-- @type Apparatus.TYPE
 -- @field #number MortarPestle
 -- @field #number Alembic
 -- @field #number Calcinator
 -- @field #number Retort
 
---- @{#ApparatusTYPE}
--- @field [parent=#Apparatus] #ApparatusTYPE TYPE
+--- @{#Apparatus.TYPE}
+-- @field [parent=#Apparatus] #Apparatus.TYPE TYPE
 
 ---
 -- Returns the read-only @{#ApparatusRecord} of an apparatus
