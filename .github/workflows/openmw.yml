@@ -7,6 +7,7 @@ on:
 env:
   BUILD_TYPE: RelWithDebInfo
   VCPKG_DEPS_REVISION: 14f130a69c29d10ecd31305db45979cf12f0c162
+  EXAMPLE_SUITE_REVISION: f51b832e033429a7cdc520e0e48d7dfdb9141caa
 
 jobs:
   Ubuntu:
@@ -251,3 +252,27 @@ jobs:
 
     - name: Run esm refid benchmark
       run: build/openmw_esm_refid_benchmark.exe
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Create directory for example-suite
+      run: mkdir example-suite
+
+    - name: Checkout example-suite
+      working-directory: ${{ github.workspace }}/example-suite
+      run: |
+        git init
+        git remote add origin https://gitlab.com/OpenMW/example-suite.git
+        git fetch --depth=1 origin ${{ env.EXAMPLE_SUITE_REVISION }}
+        git checkout FETCH_HEAD
+
+    - name: Run integration tests
+      run: >
+        python scripts/integration_tests.py
+        --verbose
+        --omw "${{ github.workspace }}/install/openmw.exe"
+        --workdir "${{ github.workspace }}/integration_tests_output"
+        "${{ github.workspace }}/example-suite"

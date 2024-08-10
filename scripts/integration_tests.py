@@ -28,11 +28,16 @@ if not openmw_binary.is_file():
     sys.exit(f"{openmw_binary} not found")
 
 work_dir = Path(args.workdir).resolve()
+print(f"Work dir: {work_dir}")
 work_dir.mkdir(parents=True, exist_ok=True)
 config_dir = work_dir / "config"
+print(f"Config dir: {config_dir}")
 userdata_dir = work_dir / "userdata"
+print(f"User data dir: {userdata_dir}")
 tests_dir = Path(__file__).resolve().parent / "data" / "integration_tests"
+print(f"Tests dir: {tests_dir}")
 testing_util_dir = tests_dir / "testing_util"
+print(f"Testing util dir: {testing_util_dir}")
 time_str = datetime.datetime.now().strftime("%Y-%m-%d-%H.%M.%S")
 
 
@@ -70,16 +75,26 @@ def runTest(name):
     stdout_lines = list()
     exit_ok = True
     test_success = True
+    openmw_env = {
+        "OPENMW_OSG_STATS_FILE": str(work_dir / f"{name}.{time_str}.osg_stats.log"),
+        "OPENMW_OSG_STATS_LIST": "times",
+        **os.environ,
+    }
+    openmw_args = [openmw_binary, "--replace=config", "--config", config_dir, "--skip-menu", "--no-grab", "--no-sound"]
+    if args.verbose:
+        print(f"Running openmw...")
+        print("Environment variables:")
+        for k, v in openmw_env.items():
+            print(f"  {k}: {v}")
+        print("Arguments:")
+        for v in openmw_args:
+            print(f"  {v}")
     with subprocess.Popen(
-        [openmw_binary, "--replace=config", "--config", config_dir, "--skip-menu", "--no-grab", "--no-sound"],
+        openmw_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         encoding="utf-8",
-        env={
-            "OPENMW_OSG_STATS_FILE": str(work_dir / f"{name}.{time_str}.osg_stats.log"),
-            "OPENMW_OSG_STATS_LIST": "times",
-            **os.environ,
-        },
+        env=openmw_env,
     ) as process:
         quit_requested = False
         for line in process.stdout:
